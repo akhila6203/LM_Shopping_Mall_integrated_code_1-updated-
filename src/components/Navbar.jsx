@@ -11,7 +11,7 @@ import { getImageUrl } from "@/api/axiosClient";
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
+  // const [isCartOpen, setIsCartOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -401,10 +401,24 @@ useEffect(() => {
                 {wishlist.length > 0 && <span className="absolute -top-0.5 -right-0.5 bg-primary text-white text-[10px] min-w-[18px] h-[18px] rounded-full flex items-center justify-center font-bold shadow-md">{wishlist.length}</span>}
               </Link>
               
-              <button onClick={() => { if(user) setIsCartOpen(true); else navigate("/account"); }} className="p-2 text-gray-600 hover:text-primary hover:bg-orange-50 rounded-full transition-all duration-200 relative">
+              <button
+                onClick={() => {
+                  if (user) navigate("/cart");
+                  else navigate("/account");
+                }}
+                className="p-2 text-gray-600 hover:text-primary hover:bg-orange-50 rounded-full transition-all duration-200 relative"
+              >
+                <ShoppingCart className="w-5 h-5" />
+                {cart.length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-primary text-white text-[10px] min-w-[18px] h-[18px] rounded-full flex items-center justify-center font-bold shadow-md">
+                    {totalItems}
+                  </span>
+                )}
+              </button>
+              {/* <button onClick={() => { if(user) setIsCartOpen(true); else navigate("/account"); }} className="p-2 text-gray-600 hover:text-primary hover:bg-orange-50 rounded-full transition-all duration-200 relative">
                 <ShoppingCart className="w-5 h-5" /> 
                 {cart.length > 0 && <span className="absolute -top-0.5 -right-0.5 bg-primary text-white text-[10px] min-w-[18px] h-[18px] rounded-full flex items-center justify-center font-bold shadow-md">{totalItems}</span>}
-              </button>
+              </button> */}
               
               <button className="lg:hidden p-2 text-gray-600" onClick={() => setMobileOpen(!mobileOpen)}>
                 {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -471,7 +485,7 @@ useEffect(() => {
       )}
 
       {/* CART DRAWER */}
-      {isCartOpen && <div className="fixed inset-0 bg-black/60 z-[60]" onClick={() => setIsCartOpen(false)} />}
+      {/* {isCartOpen && <div className="fixed inset-0 bg-black/60 z-[60]" onClick={() => setIsCartOpen(false)} />}
       <div className={`fixed top-0 right-0 h-full w-full sm:w-[400px] bg-white shadow-2xl z-[70] transform transition-transform duration-500 ease-in-out flex flex-col ${isCartOpen ? "translate-x-0" : "translate-x-full"}`}>
         <div className="p-4 border-b flex items-center justify-between">
           <h2 className="font-bold text-lg">Shopping Bag ({cart.length})</h2>
@@ -513,7 +527,7 @@ useEffect(() => {
             </button>
           </div>
         )}
-      </div>
+      </div> */}
 
       {/* MOBILE MENU */}
       {mobileOpen && (

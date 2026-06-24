@@ -44,6 +44,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy.jsx";
 import TermsConditions from "./pages/TermsConditions.jsx";
 
 
+
 const App = () => {
   return (
     <ShopProvider>
@@ -134,5 +135,4 @@ const App = () => {
     </ShopProvider>
   );
 };
-
 export default App;

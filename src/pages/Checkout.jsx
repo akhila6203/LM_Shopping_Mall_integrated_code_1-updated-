@@ -48,9 +48,14 @@ const Checkout = () => {
     return Number(cleanString) || 0;
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + (getNumericPrice(item.price) * item.qty), 0);
+  const subtotal = cart.reduce(
+    (sum, item) =>
+      sum + getNumericPrice(item.price) * Number(item.qty || 1),
+    0
+  );
   const shipping = subtotal > 999 || subtotal === 0 ? 0 : 99;
   const total = subtotal + shipping - discount;
+  
 
   // Generate estimated delivery date
   useEffect(() => {
@@ -632,7 +637,11 @@ const Checkout = () => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-sm text-stone-800 truncate">{item.name}</h4>
-                        <p className="text-stone-500 text-xs">{item.size || 'Free Size'}</p>
+                        <p className="text-stone-500 text-xs">
+                          Size: {item.size || "Free Size"}
+                          {item.color ? ` • Color: ${item.color}` : ""}
+                        </p>
+                        {/* <p className="text-stone-500 text-xs">{item.size || 'Free Size'}</p> */}
                       </div>
                       <div className="text-sm font-semibold text-stone-800">
                         ₹{(getNumericPrice(item.price) * item.qty).toLocaleString("en-IN")}

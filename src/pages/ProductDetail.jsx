@@ -264,9 +264,12 @@ const ProductDetail = () => {
         data.long_description ||
         data.description ||
         "",
-      fabric: data.fabric || data.product_type || "",
-      brand: data.brand || data.brand_name || "",
-      material: data.material || data.material_name || data.fabric || "",
+        fabric: data.fabric || "",
+        brand: data.brand || data.brand_name || "",
+        material: data.material || data.material_name || "",
+      // fabric: data.fabric || data.product_type || "",
+      // brand: data.brand || data.brand_name || "",
+      // material: data.material || data.material_name || data.fabric || "",
       sizes,
       colors,
       colorText: colors[0] || data.color || data.color_name || "",
@@ -399,36 +402,49 @@ const ProductDetail = () => {
   const isLowStock = product.stockLeft <= 3 && product.stockLeft > 0;
   const productImages = product.images?.length ? product.images : [product.image || FALLBACK_IMAGE];
 
-  const handleAddToCart = (productToAdd) => {
-    const item = productToAdd || product;
+ const handleAddToCart = async (productToAdd) => {
+  const item = productToAdd || product;
 
-    addToCart({
-      id: item.id,
-      slug: item.slug,
-      name: item.name,
-      price: item.price,
-      oldPrice: item.oldPrice,
-      image: item.image || item.images?.[0],
-      qty: quantity,
-      size: selectedSize,
-      selectedColor,
-      category: item.categoryText,
-      stock: item.stockLeft,
-    });
+  const success = await addToCart({
+    product_id: item.id,
+    id: item.id,
+    variant_id: null,
+    quantity: Number(quantity) || 1,
+    qty: Number(quantity) || 1,
+    selected_size: selectedSize || "Free Size",
+    size: selectedSize || "Free Size",
+    selected_color: selectedColor || "",
+    color: selectedColor || "",
+    item_price: Number(item.price || 0),
+    price: Number(item.price || 0),
+    sizes: item.sizes?.length ? item.sizes : [selectedSize || "Free Size"],
+    colors: item.colors || [],
+    slug: item.slug,
+    name: item.name,
+    image: item.image || item.images?.[0],
+    oldPrice: item.oldPrice,
+    fabric: item.fabric || "",
+    material: item.material || "",
+    stock: item.stockLeft,
+  });
 
-    setAddedToCart(true);
-    setShowToast(`${item.name} added to cart!`);
+  if (!success) return false;
 
-    setTimeout(() => {
-      setAddedToCart(false);
-      setShowToast(null);
-    }, 2000);
-  };
+  setAddedToCart(true);
+  setShowToast(`${quantity} item(s) added to cart!`);
 
-  const handleBuyNow = () => {
-    handleAddToCart();
-    setTimeout(() => navigate("/checkout"), 500);
-  };
+  setTimeout(() => {
+    setAddedToCart(false);
+    setShowToast(null);
+  }, 2000);
+
+  return true;
+};
+
+  const handleBuyNow = async () => {
+  const success = await handleAddToCart();
+  if (success) navigate("/cart");
+};
 
   const MiniCard = ({ item }) => (
     <Link
