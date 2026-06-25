@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { 
   User, Mail, Phone, MapPin, Calendar, Edit3, Camera, Heart, 
-  Package, Clock, Settings, LogOut, ChevronRight, Gift, Percent,
-  Shield, CreditCard, ShoppingBag, Star, Award, TrendingUp,
+  Package, Clock, Settings, LogOut, ChevronRight,
+  Shield, CreditCard, ShoppingBag, Star,
   ArrowRight, Sparkles, Truck, RefreshCw, AlertCircle, CheckCircle,
   Eye, Download, Filter, MoreHorizontal, X, Plus, Minus, Search,
   Home, Briefcase, Trash2, Check, Circle, Upload, LogIn
@@ -96,8 +96,6 @@ const Profile = () => {
       setActiveTab("wishlist");
     } else if (tab === "addresses") {
       setActiveTab("addresses");
-    } else if (tab === "rewards") {
-      setActiveTab("rewards");
     } else if (tab === "settings") {
       setActiveTab("settings");
     }
@@ -348,7 +346,6 @@ const Profile = () => {
     { id: "orders", label: "My Orders", icon: Package, count: orders.length },
     { id: "wishlist", label: "Wishlist", icon: Heart, count: wishlist.length },
     { id: "addresses", label: "Addresses", icon: MapPin, count: savedAddresses.length },
-    { id: "rewards", label: "Rewards", icon: Gift },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -727,37 +724,6 @@ const Profile = () => {
                       )}
                     </div>
                   ))}
-                </div>
-              </div>
-            )}
-
-            {/* Rewards Tab */}
-            {activeTab === "rewards" && (
-              <div>
-                <div className="text-center mb-5">
-                  <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Gift className="w-8 h-8 text-primary" />
-                  </div>
-                  <p className="text-3xl font-bold text-stone-800">2,450</p>
-                  <p className="text-xs text-stone-500">Reward Points</p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { title: "10% OFF", desc: "On next purchase", points: "500 points" },
-                    { title: "Free Shipping", desc: "Above ₹999", points: "200 points" },
-                    { title: "₹500 Voucher", desc: "Min ₹2,500", points: "1000 points" },
-                  ].map((reward, idx) => (
-                    <div key={idx} className="bg-stone-50 rounded-lg p-3 text-center">
-                      <h4 className="text-sm font-semibold text-stone-800">{reward.title}</h4>
-                      <p className="text-xs text-stone-500 mt-1">{reward.desc}</p>
-                      <p className="text-xs text-primary mt-2 font-medium">{reward.points}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-5 pt-4 border-t border-stone-100">
-                  <button className="w-full bg-primary text-white py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition">
-                    Redeem Points
-                  </button>
                 </div>
               </div>
             )}

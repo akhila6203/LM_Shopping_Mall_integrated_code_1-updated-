@@ -5,6 +5,19 @@ import {
   CheckCircle, AlertCircle, Phone
 } from "lucide-react";
 import { useShop } from "../ShopContext.jsx";
+import { getBanners } from "@/services/bannerService";
+import { getImageUrl } from "@/api/axiosClient";
+
+const isActiveBanner = (status) =>
+  status === "active" || status === 1 || status === true;
+
+const mapBannerToSlide = (banner) => ({
+  id: banner.id,
+  image: getImageUrl(banner.image),
+  title: banner.title || "",
+  subtitle: banner.subtitle || banner.subtitle1 || "",
+  description: banner.description || "",
+});
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -24,45 +37,38 @@ const Register = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [heroSlides, setHeroSlides] = useState([]);
 
   const navigate = useNavigate();
   const location = useLocation();
   const { register } = useShop();
 
-  const FALLBACK_IMAGE =
-    "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=600&fit=crop";
+  useEffect(() => {
+    const loadBanners = async () => {
+      try {
+        const data = await getBanners();
+        const slides = (data || [])
+          .filter((b) => isActiveBanner(b.status))
+          .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0))
+          .map(mapBannerToSlide)
+          .filter((slide) => slide.image);
 
-  const heroSlides = [
-    {
-      image: "https://i.pinimg.com/736x/12/da/f8/12daf885924c4d60bedd30fb1c088782.jpg",
-      title: "Join the",
-      subtitle: "Legacy.",
-      description: "Create an account to unlock early access to sales, tailored styling tips, and faster checkouts."
-    },
-    {
-      image: "https://i.pinimg.com/736x/ae/d7/22/aed722220bbb4454e656c57f7a989c05.jpg",
-      title: "Exclusive",
-      subtitle: "Benefits.",
-      description: "Get 10% off your first order, birthday surprises, and members-only previews."
-    },
-    {
-      image: "https://i.pinimg.com/1200x/b7/a1/7b/b7a17bc21c9cc3cb37e77d9a60754cee.jpg",
-      title: "Become a",
-      subtitle: "VIP.",
-      description: "Earn points on every purchase and unlock premium rewards and experiences."
-    }
-  ];
+        setHeroSlides(slides);
+      } catch (error) {
+        console.error("Register banner fetch error:", error);
+      }
+    };
+
+    loadBanners();
+  }, []);
 
   useEffect(() => {
+    if (heroSlides.length === 0) return undefined;
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
     }, 5000);
     return () => clearInterval(interval);
   }, [heroSlides.length]);
-
-  const handleImageError = (e) => {
-    e.target.src = FALLBACK_IMAGE;
-  };
 
   const checkPasswordStrength = (pwd) => {
     let strength = 0;
@@ -172,7 +178,7 @@ const Register = () => {
       <div className="w-full lg:w-1/2 relative bg-stone-900 overflow-hidden h-[250px] sm:h-[300px] lg:h-auto">
         {heroSlides.map((slide, idx) => (
           <div
-            key={idx}
+            key={slide.id ?? idx}
             className={`absolute inset-0 transition-opacity duration-1000 ${
               currentSlide === idx ? "opacity-100 z-10" : "opacity-0 z-0"
             }`}
@@ -181,7 +187,9 @@ const Register = () => {
               src={slide.image}
               alt={slide.title}
               className="absolute inset-0 w-full h-full object-cover bg-stone-900"
-              onError={handleImageError}
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"></div>
             <div className="absolute inset-0 bg-gradient-to-l from-black/50 to-transparent"></div>
@@ -223,6 +231,7 @@ const Register = () => {
           </Link>
         </div>
 
+        {heroSlides.length > 0 && (
         <div className="absolute bottom-4 sm:bottom-6 lg:bottom-8 left-1/2 -translate-x-1/2 z-30 flex gap-1.5 sm:gap-2">
           {heroSlides.map((_, idx) => (
             <button
@@ -236,6 +245,7 @@ const Register = () => {
             />
           ))}
         </div>
+        )}
       </div>
 
       <div className="w-full lg:w-1/2 flex flex-col justify-center px-5 sm:px-10 md:px-14 lg:px-20 py-8 lg:py-12 relative">
@@ -355,7 +365,7 @@ const Register = () => {
                   value={formData.password}
                   onChange={handleChange}
                   className="w-full bg-white border border-stone-200 rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 pr-11 sm:pr-12 font-body text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                  placeholder="password"
                   required
                 />
                 <button
@@ -408,7 +418,7 @@ const Register = () => {
                       ? "border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100"
                       : "border-stone-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
                   }`}
-                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                  placeholder="confirm password"
                   required
                 />
                 <button

@@ -6,7 +6,7 @@ import {
   Twitter, Youtube, Linkedin
 } from "lucide-react";
 
-import { getStoreInformation, getContactPage } from "@/services/contactService";
+import { getStoreInformation, getContactPage, extractWorkingHours } from "@/services/contactService";
 
 const onlyDigits = (value = "") => String(value || "").replace(/\D/g, "");
 
@@ -75,7 +75,7 @@ const Contact = () => {
           linkedinUrl: storeData?.linkedinUrl || "",
 
           googleMapsEmbedUrl: contactData?.googleMapsEmbedUrl || "",
-          supportHours: contactData?.supportHours || "",
+          storeHours: extractWorkingHours(storeData, contactData),
         });
       } catch (error) {
         console.error("Contact data fetch error:", error);
@@ -109,22 +109,7 @@ const Contact = () => {
     : "";
 
 
-  const storeHours =
-    contactInfo.supportHours?.length > 0
-      ? contactInfo.supportHours
-          .split("\n")
-          .map((row) => {
-            const colonIndex = row.indexOf(":");
-            if (colonIndex === -1) {
-              return { day: row.trim(), hours: "" };
-            }
-            return {
-              day: row.slice(0, colonIndex).trim(),
-              hours: row.slice(colonIndex + 1).trim(),
-            };
-          })
-          .filter((row) => row.day)
-      : [];
+  const storeHours = contactInfo.storeHours || [];
 
   const quickContacts = [
     {

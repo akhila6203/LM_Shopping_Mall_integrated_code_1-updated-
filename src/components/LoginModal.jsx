@@ -15,27 +15,19 @@ import {
   Gift,
 } from "lucide-react";
 import { useShop } from "../ShopContext.jsx";
+import { getBanners } from "@/services/bannerService";
+import { getImageUrl } from "@/api/axiosClient";
 
-const slides = [
-  {
-    title: "Timeless Elegance",
-    subtitle: "Experience the royal touch of handcrafted ethnic wear",
-    badge: "New Collection",
-    image: "https://i.pinimg.com/736x/e3/7e/e1/e37ee137d9d7ab7abb31b21519d5f208.jpg",
-  },
-  {
-    title: "Artisanal Heritage",
-    subtitle: "Centuries of craftsmanship in every thread",
-    badge: "Handloom Special",
-    image: "https://i.pinimg.com/1200x/b8/90/97/b890972e18b3aa7864e711410a850d5a.jpg",
-  },
-  {
-    title: "Wedding Edit 2026",
-    subtitle: "Discover our exclusive bridal collection",
-    badge: "Bridal Exclusive",
-    image: "https://i.pinimg.com/736x/d2/77/d7/d277d7316a19797d685993f10e6e51dc.jpg",
-  },
-];
+const isActiveBanner = (status) =>
+  status === "active" || status === 1 || status === true;
+
+const mapBannerToSlide = (banner) => ({
+  id: banner.id,
+  image: getImageUrl(banner.image),
+  title: banner.title || "",
+  subtitle: banner.description || "",
+  badge: banner.subtitle || banner.subtitle1 || "",
+});
 
 const benefits = [
   { icon: Percent, text: "10% OFF first order" },
@@ -61,6 +53,7 @@ const LoginModal = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [activeSlide, setActiveSlide] = useState(0);
+  const [heroSlides, setHeroSlides] = useState([]);
 
   const isOpen = loginModal?.open;
 
@@ -80,12 +73,32 @@ const LoginModal = () => {
   }, [isOpen, authLoading, customer, closeLoginModal]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
+    const loadBanners = async () => {
+      try {
+        const data = await getBanners();
+        const slides = (data || [])
+          .filter((b) => isActiveBanner(b.status))
+          .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0))
+          .map(mapBannerToSlide)
+          .filter((slide) => slide.image);
+        setHeroSlides(slides);
+        setActiveSlide(0);
+      } catch (error) {
+        console.error("Login modal banner fetch error:", error);
+        setHeroSlides([]);
+      }
+    };
+    loadBanners();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || heroSlides.length === 0) return undefined;
     const interval = setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % slides.length);
+      setActiveSlide((prev) => (prev + 1) % heroSlides.length);
     }, 5000);
     return () => clearInterval(interval);
-  }, [isOpen]);
+  }, [isOpen, heroSlides.length]);
 
   const getReturnPath = () => {
     const from = loginModal?.from;
@@ -175,9 +188,9 @@ const LoginModal = () => {
 
         <div className="grid md:grid-cols-2">
           <div className="relative h-[280px] md:h-[520px] overflow-hidden bg-stone-900">
-            {slides.map((slide, idx) => (
+            {heroSlides.map((slide, idx) => (
               <div
-                key={idx}
+                key={slide.id ?? idx}
                 className={`absolute inset-0 transition-opacity duration-1000 ${
                   activeSlide === idx ? "opacity-100 z-10" : "opacity-0 z-0"
                 }`}
@@ -185,7 +198,10 @@ const LoginModal = () => {
                 <img
                   src={slide.image}
                   alt={slide.title}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover bg-stone-900"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
@@ -195,10 +211,12 @@ const LoginModal = () => {
                       activeSlide === idx ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
                     }`}
                   >
+                    {slide.badge && (
                     <span className="inline-flex items-center gap-1.5 bg-primary/90 backdrop-blur-sm text-white text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-full mb-3">
                       <Sparkles className="w-3 h-3" />
                       {slide.badge}
                     </span>
+                    )}
                     <h2 className="font-heading text-3xl font-bold mb-2">{slide.title}</h2>
                     <p className="text-sm text-white/80">{slide.subtitle}</p>
                   </div>
@@ -206,8 +224,9 @@ const LoginModal = () => {
               </div>
             ))}
 
+            {heroSlides.length > 0 && (
             <div className="absolute bottom-6 left-8 z-20 flex gap-1.5">
-              {slides.map((_, idx) => (
+              {heroSlides.map((_, idx) => (
                 <button
                   key={idx}
                   type="button"
@@ -218,6 +237,7 @@ const LoginModal = () => {
                 />
               ))}
             </div>
+            )}
 
             <div className="absolute top-6 left-6 z-20">
               <span className="font-heading text-2xl font-bold text-white tracking-wider">

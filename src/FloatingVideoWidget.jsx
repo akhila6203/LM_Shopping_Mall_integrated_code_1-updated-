@@ -10,6 +10,17 @@ import {
   VolumeX,
   Zap,
 } from "lucide-react";
+import { getBannerVideos } from "@/services/bannerVideoService";
+import { getImageUrl } from "@/api/axiosClient";
+
+const isActive = (status) =>
+  status === "active" || status === 1 || status === true;
+
+const resolveVideoUrl = (video) => {
+  if (video.video_path) return getImageUrl(video.video_path);
+  if (video.video_url) return video.video_url;
+  return "";
+};
 
 const FloatingVideoWidget = () => {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -17,25 +28,37 @@ const FloatingVideoWidget = () => {
   const [isClosed, setIsClosed] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [currentVideo, setCurrentVideo] = useState(0);
+  const [videos, setVideos] = useState([]);
 
   const videoRef = useRef(null);
 
-  // 🎥 ADD YOUR 3 VIDEOS HERE
-  const videos = ["/video1.mp4", "/video.mp4", "/video2.mp4"];
+  useEffect(() => {
+    const loadVideos = async () => {
+      try {
+        const data = await getBannerVideos();
+        const activeVideos = data
+          .filter((v) => isActive(v.status))
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          .map(resolveVideoUrl)
+          .filter(Boolean);
+        setVideos(activeVideos);
+      } catch (error) {
+        console.error("Banner video fetch error:", error);
+        setVideos([]);
+      }
+    };
 
-  // ✅ AUTO PLAY ON LOAD
- useEffect(() => {
-  if (videoRef.current) {
-    videoRef.current.play().catch(() => {});
-  }
-}, [currentVideo]);
+    loadVideos();
+  }, []);
 
-  // 🔥 AUTO NEXT VIDEO
-  const handleVideoEnd = () => {
-    setCurrentVideo((prev) => (prev + 1) % videos.length);
-  };
+  useEffect(() => {
+    if (videoRef.current && videos.length > 0) {
+      videoRef.current.src = videos[currentVideo];
+      videoRef.current.play().catch(() => {});
+    }
+  }, [currentVideo, videos]);
 
-  if (isClosed) return null;
+  if (isClosed || videos.length === 0) return null;
 
   const handleMinimize = (e) => {
     e?.stopPropagation();
@@ -64,7 +87,6 @@ const FloatingVideoWidget = () => {
 
   return (
     <>
-      {/* BACKDROP */}
       {isFullScreen && (
         <div
           className="fixed inset-0 bg-black/90 z-[90]"
@@ -82,7 +104,6 @@ const FloatingVideoWidget = () => {
         }`}
       >
         {!isExpanded ? (
-          /* 🔴 SMALL VIDEO BUBBLE */
           <div
             onClick={handleMaximize}
             className="relative w-14 h-14 rounded-full overflow-hidden cursor-pointer shadow-lg"
@@ -102,7 +123,6 @@ const FloatingVideoWidget = () => {
             </div>
           </div>
         ) : (
-          /* 🔥 VIDEO PLAYER */
           <div
             className={`relative bg-black overflow-hidden rounded-xl shadow-xl ${
               isFullScreen
@@ -111,9 +131,7 @@ const FloatingVideoWidget = () => {
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 🔝 CONTROLS */}
             <div className="absolute top-2 right-2 z-20 flex gap-1">
-              {/* MUTE */}
               <button
                 onClick={toggleMute}
                 className="p-1 bg-black/60 rounded-full text-white"
@@ -125,7 +143,6 @@ const FloatingVideoWidget = () => {
                 )}
               </button>
 
-              {/* FULLSCREEN */}
               <button
                 onClick={toggleFullScreen}
                 className="p-1 bg-black/60 rounded-full text-white"
@@ -137,7 +154,6 @@ const FloatingVideoWidget = () => {
                 )}
               </button>
 
-              {/* MINIMIZE */}
               <button
                 onClick={handleMinimize}
                 className="p-1 bg-black/60 rounded-full text-white"
@@ -145,7 +161,6 @@ const FloatingVideoWidget = () => {
                 <Minimize2 className="w-3 h-3" />
               </button>
 
-              {/* CLOSE */}
               <button
                 onClick={() => setIsClosed(true)}
                 className="p-1 bg-black/60 rounded-full text-white"
@@ -154,7 +169,6 @@ const FloatingVideoWidget = () => {
               </button>
             </div>
 
-            {/* 🔥 30% OFF BADGE */}
             <div className="absolute top-8 left-2 z-20 bg-black/70 px-2 py-1 rounded-full flex items-center gap-1">
               <Zap className="w-3 h-3 text-orange-500" />
               <span className="text-white text-[10px] font-semibold">
@@ -162,28 +176,26 @@ const FloatingVideoWidget = () => {
               </span>
             </div>
 
-            {/* 🎥 VIDEO */}
-          <video
-  ref={videoRef}
-  src={videos[0]} // start from first
-  autoPlay
-  muted={isMuted}
-  playsInline
-  preload="auto"
-  className="w-full h-full object-cover"
-  onEnded={() => {
-    const nextIndex = (currentVideo + 1) % videos.length;
+            <video
+              ref={videoRef}
+              src={videos[currentVideo]}
+              autoPlay
+              muted={isMuted}
+              playsInline
+              preload="auto"
+              className="w-full h-full object-cover"
+              onEnded={() => {
+                const nextIndex = (currentVideo + 1) % videos.length;
 
-    // 🔥 directly change src (NO REACT DELAY)
-    if (videoRef.current) {
-      videoRef.current.src = videos[nextIndex];
-      videoRef.current.play().catch(() => {});
-    }
+                if (videoRef.current) {
+                  videoRef.current.src = videos[nextIndex];
+                  videoRef.current.play().catch(() => {});
+                }
 
-    setCurrentVideo(nextIndex);
-  }}
-/>
-            {/* 🛒 CTA BUTTON */}
+                setCurrentVideo(nextIndex);
+              }}
+            />
+
             <div className="absolute bottom-2 left-0 right-0 flex justify-center">
               <button
                 onClick={() => (window.location.href = "/shop")}

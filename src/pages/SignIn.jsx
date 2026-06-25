@@ -7,6 +7,19 @@ import {
   Gift, Percent, MessageCircle
 } from "lucide-react";
 import { useShop } from "../ShopContext.jsx";
+import { getBanners } from "@/services/bannerService";
+import { getImageUrl } from "@/api/axiosClient";
+
+const isActiveBanner = (status) =>
+  status === "active" || status === 1 || status === true;
+
+const mapBannerToSlide = (banner) => ({
+  id: banner.id,
+  image: getImageUrl(banner.image),
+  title: banner.title || "",
+  subtitle: banner.subtitle || banner.subtitle1 || "",
+  description: banner.description || "",
+});
 
 const SignIn = () => {
   const navigate = useNavigate();
@@ -26,28 +39,8 @@ const SignIn = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [timer, setTimer] = useState(0);
+  const [heroSlides, setHeroSlides] = useState([]);
   const otpRefs = useRef([]);
-
-  const heroSlides = [
-    {
-      image: "https://i.pinimg.com/736x/ae/d7/22/aed722220bbb4454e656c57f7a989c05.jpg",
-      title: "Return to",
-      subtitle: "Elegance.",
-      description: "Log in to discover personalized recommendations and exclusive ethnic wear collections."
-    },
-    {
-      image: "https://i.pinimg.com/736x/12/da/f8/12daf885924c4d60bedd30fb1c088782.jpg",
-      title: "Your Style",
-      subtitle: "Awaits.",
-      description: "Access your wishlist, track orders, and get early access to new arrivals."
-    },
-    {
-      image: "https://i.pinimg.com/1200x/b7/a1/7b/b7a17bc21c9cc3cb37e77d9a60754cee.jpg",
-      title: "Join the",
-      subtitle: "Community.",
-      description: "Connect with thousands of fashion enthusiasts and share your style journey."
-    }
-  ];
 
   const benefits = [
     { icon: Percent, text: "10% OFF first order" },
@@ -56,6 +49,26 @@ const SignIn = () => {
   ];
 
   useEffect(() => {
+    const loadBanners = async () => {
+      try {
+        const data = await getBanners();
+        const slides = (data || [])
+          .filter((b) => isActiveBanner(b.status))
+          .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0))
+          .map(mapBannerToSlide)
+          .filter((slide) => slide.image);
+
+        setHeroSlides(slides);
+      } catch (error) {
+        console.error("Login banner fetch error:", error);
+      }
+    };
+
+    loadBanners();
+  }, []);
+
+  useEffect(() => {
+    if (heroSlides.length === 0) return undefined;
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
     }, 5000);
@@ -233,8 +246,15 @@ const SignIn = () => {
       
       <div className="w-full lg:w-1/2 relative bg-stone-900 overflow-hidden h-[250px] sm:h-[300px] lg:h-auto">
         {heroSlides.map((slide, idx) => (
-          <div key={idx} className={`absolute inset-0 transition-opacity duration-1000 ${currentSlide === idx ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
-            <img src={slide.image} alt={slide.title} className="absolute inset-0 w-full h-full object-cover bg-stone-900" />
+          <div key={slide.id ?? idx} className={`absolute inset-0 transition-opacity duration-1000 ${currentSlide === idx ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
+            <img
+              src={slide.image}
+              alt={slide.title}
+              className="absolute inset-0 w-full h-full object-cover bg-stone-900"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"></div>
             <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-transparent"></div>
             
@@ -262,6 +282,7 @@ const SignIn = () => {
           </Link>
         </div>
 
+        {heroSlides.length > 0 && (
         <div className="absolute bottom-4 sm:bottom-6 lg:bottom-8 left-1/2 -translate-x-1/2 z-30 flex gap-1.5 sm:gap-2">
           {heroSlides.map((_, idx) => (
             <button 
@@ -271,6 +292,7 @@ const SignIn = () => {
             />
           ))}
         </div>
+        )}
       </div>
 
       <div className="w-full lg:w-1/2 flex flex-col justify-center px-5 sm:px-10 md:px-14 lg:px-20 py-8 lg:py-12 relative">
