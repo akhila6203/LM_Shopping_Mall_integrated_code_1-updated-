@@ -109,11 +109,16 @@ export const ShopProvider = ({ children }) => {
       item_data: {
         sizes,
         colors: product.colors || [],
+        image: product.image || "",
+        fabric: product.fabric || "",
+        material: product.material || "",
+        brand: product.brand || "",
       },
     };
 
     await addCartItem(payload);
     await fetchCart();
+    window.dispatchEvent(new Event("cart-updated"));
     return true;
   } catch (error) {
     console.error("Add cart error:", error);
@@ -121,6 +126,8 @@ export const ShopProvider = ({ children }) => {
     return false;
   }
 };
+
+
 
   const removeFromCart = async (key) => {
     try {
