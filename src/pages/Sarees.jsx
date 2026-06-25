@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom"; 
 import { Filter, Heart, X, ChevronDown, Star, Search, Eye, ShoppingCart, Sparkles, TrendingUp, Flame, Play, Award, Truck, Shield, Clock, Zap, Plus, Minus, ChevronRight, ArrowRight } from "lucide-react"; 
 import { useShop } from "../ShopContext.jsx";
+import { useProtectedActions } from "@/hooks/useProtectedActions";
 
 const sareeProducts = [
   { id: 1, name: "Beige Crushed Tissue Saree With Embroidered Border", price: 7696, oldPrice: 10995, tag: "Ready To Ship", category: "Tissue", color: "Beige", rating: 4.8, reviews: 45, fabric: "Tissue", occasion: "Party", image: "https://ik.imagekit.io/4sjmoqtje/tr:w-370,c-at_max/cdn/shop/files/red-organza-saree-with-florals-and-cutdana-border-sg297625-2.jpg?v=1748335622", badge: "Bestseller", stockLeft: 5, colors: ["#F5E6D3", "#FFDAB9", "#E8D5C4"] },
@@ -60,7 +61,8 @@ const Sarees = () => {
   const [selectedColor, setSelectedColor] = useState({});
   const [activeCategory, setActiveCategory] = useState(null);
 
-  const { addToCart, toggleWishlist, wishlist, cart } = useShop();
+  const { wishlist, cart } = useShop();
+  const { handleAddToCart: addToCartProtected, handleToggleWishlist } = useProtectedActions();
 
   const toggleSection = (section) => setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
 
@@ -147,9 +149,10 @@ const Sarees = () => {
     }
   }, [location]);
 
-  const handleAddToCart = (e, saree) => {
+  const handleAddToCart = async (e, saree) => {
     e.preventDefault(); e.stopPropagation();
-    addToCart(saree);
+    const success = await addToCartProtected(saree);
+    if (!success) return;
     setAddedToCart({ ...addedToCart, [saree.id]: true });
     setTimeout(() => setAddedToCart({ ...addedToCart, [saree.id]: false }), 2000);
   };
@@ -377,7 +380,7 @@ const Sarees = () => {
                             {discount && <span className="bg-red-500 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-xl">{discount}% OFF</span>}
                           </div>
                           <div className={`absolute top-3 right-3 flex flex-col gap-2 transition-all duration-500 ${hoveredProduct === saree.id ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
-                            <button onClick={(e) => { e.stopPropagation(); toggleWishlist(saree); }} className="p-2.5 bg-white rounded-xl shadow-xl hover:bg-primary hover:text-white transition-all duration-300 hover:scale-110"><Heart className={`w-4 h-4 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-stone-700'}`} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); handleToggleWishlist(saree); }} className="p-2.5 bg-white rounded-xl shadow-xl hover:bg-primary hover:text-white transition-all duration-300 hover:scale-110"><Heart className={`w-4 h-4 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-stone-700'}`} /></button>
                             <button onClick={(e) => { e.stopPropagation(); addToRecentlyViewed(saree); setQuickViewProduct(saree); }} className="p-2.5 bg-white rounded-xl shadow-xl hover:bg-primary hover:text-white transition-all duration-300 hover:scale-110"><Eye className="w-4 h-4 text-stone-700" /></button>
                           </div>
                           {isLowStock && <div className="absolute bottom-3 left-3 bg-gradient-to-r from-orange-500 to-red-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-xl flex items-center gap-1.5"><Zap className="w-3 h-3 fill-white" />Only {saree.stockLeft} left!</div>}
@@ -438,7 +441,7 @@ const Sarees = () => {
                 <div className="flex items-center gap-2 mb-4"><div className="flex">{[...Array(5)].map((_, i) => (<Star key={i} className={`w-4 h-4 ${i < Math.floor(quickViewProduct.rating || 0) ? 'fill-yellow-500 text-yellow-500' : 'text-stone-200'}`} />))}</div><span className="text-sm text-stone-500 font-medium">({quickViewProduct.reviews || 0} reviews)</span></div>
                 <div className="flex items-center gap-3 mb-6 bg-stone-50 p-4 rounded-2xl"><span className="text-3xl font-bold text-stone-800">₹{quickViewProduct.price?.toLocaleString() || '0'}</span>{quickViewProduct.oldPrice && <><span className="text-stone-400 line-through text-lg">₹{quickViewProduct.oldPrice.toLocaleString()}</span><span className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1.5 rounded-full">Save {getDiscountedPrice(quickViewProduct.price, quickViewProduct.oldPrice)}%</span></>}</div>
                 <div className="mb-6"><p className="text-sm font-semibold text-stone-700 mb-3">Available Colors</p><div className="flex gap-3">{quickViewProduct.colors?.map((color, idx) => (<button key={idx} className="w-10 h-10 rounded-full border-2 border-stone-200 hover:border-primary transition-all hover:scale-110 shadow-md" style={{ backgroundColor: color }} />))}</div></div>
-                <div className="flex gap-3"><button onClick={(e) => { handleAddToCart(e, quickViewProduct); setQuickViewProduct(null); }} className="flex-1 bg-primary text-white py-4 rounded-full font-semibold hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 hover:shadow-primary/30 flex items-center justify-center gap-2"><ShoppingCart className="w-5 h-5" /> Add to Cart</button><button onClick={() => { toggleWishlist(quickViewProduct); }} className="p-4 border-2 border-stone-200 rounded-full hover:border-primary hover:text-primary transition-all hover:scale-110"><Heart className={`w-5 h-5 ${wishlist.some(i => i.id === quickViewProduct.id) ? 'fill-red-500 text-red-500' : ''}`} /></button></div>
+                <div className="flex gap-3"><button onClick={(e) => { handleAddToCart(e, quickViewProduct); setQuickViewProduct(null); }} className="flex-1 bg-primary text-white py-4 rounded-full font-semibold hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 hover:shadow-primary/30 flex items-center justify-center gap-2"><ShoppingCart className="w-5 h-5" /> Add to Cart</button><button onClick={() => { handleToggleWishlist(quickViewProduct); }} className="p-4 border-2 border-stone-200 rounded-full hover:border-primary hover:text-primary transition-all hover:scale-110"><Heart className={`w-5 h-5 ${wishlist.some(i => i.id === quickViewProduct.id) ? 'fill-red-500 text-red-500' : ''}`} /></button></div>
               </div>
             </div>
           </div>

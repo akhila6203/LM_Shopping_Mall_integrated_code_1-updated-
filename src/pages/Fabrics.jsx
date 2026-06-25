@@ -6,6 +6,7 @@ import {
   X, Plus, Minus, Sparkles, Ruler, Scissors, ChevronRight
 } from "lucide-react";
 import { useShop } from "../ShopContext.jsx";
+import { useProtectedActions } from "@/hooks/useProtectedActions";
 
 const fabricProducts = [
   { id: 201, name: "Banarasi Silk Brocade", price: 3499, oldPrice: 4999, category: "Silk", image: "https://i.pinimg.com/736x/4f/0c/79/4f0c799c67e8be10b14ad150b54f53b4.jpg", rating: 4.9, reviews: 234, fabric: "Pure Silk", width: "44\"", length: "5.5m", stockLeft: 8, colors: ["#8B0000", "#C41E3A", "#FFD700"], exclusive: true, texture: "Smooth", weight: "Medium", tag: "Premium", badge: "Luxury" },
@@ -42,7 +43,8 @@ const Fabrics = () => {
   const [expandedSections, setExpandedSections] = useState({});
   const [selectedFilters, setSelectedFilters] = useState({});
 
-  const { addToCart, toggleWishlist, wishlist, cart } = useShop();
+  const { wishlist, cart } = useShop();
+  const { handleAddToCart: addToCartProtected, handleToggleWishlist } = useProtectedActions();
 
   // ✅ READ URL PARAMETER FOR CATEGORY FILTER
   useEffect(() => {
@@ -94,9 +96,10 @@ const Fabrics = () => {
   if (sortBy === "Top Rated") filteredFabrics.sort((a, b) => (b.rating || 0) - (a.rating || 0));
   if (sortBy === "Newest") filteredFabrics.sort((a, b) => b.id - a.id);
 
-  const handleAddToCart = (e, fabric) => {
+  const handleAddToCart = async (e, fabric) => {
     e.preventDefault(); e.stopPropagation();
-    addToCart({ ...fabric, qty: 1, size: "5.5 meters" });
+    const success = await addToCartProtected({ ...fabric, qty: 1, size: "5.5 meters" });
+    if (!success) return;
     setAddedToCart({ ...addedToCart, [fabric.id]: true });
     setTimeout(() => setAddedToCart({ ...addedToCart, [fabric.id]: false }), 2000);
   };
@@ -222,7 +225,7 @@ const Fabrics = () => {
                         </div>
                         <div className={`absolute inset-0 bg-black/20 transition-opacity duration-300 ${hoveredProduct === fabric.id ? 'opacity-100' : 'opacity-0'}`}>
                           <div className="absolute top-3 right-3 flex flex-col gap-2">
-                            <button onClick={(e) => { e.stopPropagation(); toggleWishlist(fabric); }} className="p-2.5 bg-white rounded-xl shadow-xl hover:bg-primary hover:text-white transition-all hover:scale-110"><Heart className={`w-4 h-4 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-stone-700'}`} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); handleToggleWishlist(fabric); }} className="p-2.5 bg-white rounded-xl shadow-xl hover:bg-primary hover:text-white transition-all hover:scale-110"><Heart className={`w-4 h-4 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-stone-700'}`} /></button>
                             <button onClick={(e) => { e.stopPropagation(); setQuickViewProduct(fabric); }} className="p-2.5 bg-white rounded-xl shadow-xl hover:bg-primary hover:text-white transition-all hover:scale-110"><Eye className="w-4 h-4 text-stone-700" /></button>
                           </div>
                           <div className="absolute bottom-4 left-4 right-4">
@@ -284,7 +287,7 @@ const Fabrics = () => {
                 <h2 className="font-heading text-2xl text-stone-800 mt-3 mb-3">{quickViewProduct.name}</h2>
                 <div className="flex items-center gap-2 mb-4"><div className="flex">{[...Array(5)].map((_, i) => (<Star key={i} className={`w-4 h-4 ${i < Math.floor(quickViewProduct.rating) ? 'fill-yellow-500 text-yellow-500' : 'text-stone-200'}`} />))}</div><span className="text-sm text-stone-500">({quickViewProduct.reviews} reviews)</span></div>
                 <div className="flex items-center gap-3 mb-6 bg-stone-50 p-4 rounded-2xl"><span className="text-3xl font-bold text-stone-800">₹{quickViewProduct.price.toLocaleString()}</span>{quickViewProduct.oldPrice && <><span className="text-stone-400 line-through text-lg">₹{quickViewProduct.oldPrice.toLocaleString()}</span><span className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1.5 rounded-full">Save {getDiscountedPrice(quickViewProduct.price, quickViewProduct.oldPrice)}%</span></>}</div>
-                <div className="flex gap-3"><button onClick={(e) => { handleAddToCart(e, quickViewProduct); setQuickViewProduct(null); }} className="flex-1 bg-primary text-white py-4 rounded-full font-semibold hover:bg-primary/90 transition-all shadow-xl flex items-center justify-center gap-2"><ShoppingCart className="w-5 h-5" /> Add to Cart</button><button onClick={() => { toggleWishlist(quickViewProduct); }} className="p-4 border-2 border-stone-200 rounded-full hover:border-primary transition-all hover:scale-110"><Heart className={`w-5 h-5 ${wishlist.some(i => i.id === quickViewProduct.id) ? 'fill-red-500 text-red-500' : ''}`} /></button></div>
+                <div className="flex gap-3"><button onClick={(e) => { handleAddToCart(e, quickViewProduct); setQuickViewProduct(null); }} className="flex-1 bg-primary text-white py-4 rounded-full font-semibold hover:bg-primary/90 transition-all shadow-xl flex items-center justify-center gap-2"><ShoppingCart className="w-5 h-5" /> Add to Cart</button><button onClick={() => { handleToggleWishlist(quickViewProduct); }} className="p-4 border-2 border-stone-200 rounded-full hover:border-primary transition-all hover:scale-110"><Heart className={`w-5 h-5 ${wishlist.some(i => i.id === quickViewProduct.id) ? 'fill-red-500 text-red-500' : ''}`} /></button></div>
               </div>
             </div>
           </div>

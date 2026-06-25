@@ -126,7 +126,7 @@ const OrderHistory = () => {
     // Simulate API call - in real app, fetch from backend
     setTimeout(() => {
       // Check if user is logged in
-      const userAuth = localStorage.getItem("userAuth");
+      const userAuth = sessionStorage.getItem("userAuth");
       if (!userAuth) {
         navigate("/account");
         return;

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { ShoppingBag, Star, Heart, Eye, TrendingUp, Clock, Award, Truck, Shield, ArrowRight, ChevronLeft, ChevronRight, Sparkles, Zap, Flame, Gift, Tag, Users, Play, Pause, Volume2, VolumeX, CheckCircle, Package, RefreshCw } from "lucide-react";
 import { useShop } from "../ShopContext";
+import { useProtectedActions } from "@/hooks/useProtectedActions";
 
 const featuredItems = [
   { 
@@ -49,7 +50,8 @@ const featuredItems = [
 ];
 
 const FeaturedBanner = () => {
-  const { addToCart, wishlist, toggleWishlist } = useShop();
+  const { wishlist } = useShop();
+  const { handleAddToCart: addToCartProtected, handleToggleWishlist } = useProtectedActions();
   const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [hoveredProduct, setHoveredProduct] = useState(null);
   const [selectedColor, setSelectedColor] = useState({});
@@ -60,8 +62,9 @@ const FeaturedBanner = () => {
 
   const filters = ["All", "Exclusive", "Bestseller", "Trending", "New Arrival"];
 
-  const handleAddToCart = (item) => {
-    addToCart(item);
+  const handleAddToCart = async (item) => {
+    const success = await addToCartProtected(item);
+    if (!success) return;
     setAddedToCart({ ...addedToCart, [item.id]: true });
     setTimeout(() => setAddedToCart({ ...addedToCart, [item.id]: false }), 2000);
   };
@@ -313,7 +316,7 @@ const FeaturedBanner = () => {
                   <div className={`absolute top-3 right-3 flex flex-col gap-2 transition-all duration-300 ${
                     hoveredProduct === item.id ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'
                   }`}>
-                    <button onClick={() => toggleWishlist(item)} className="p-2.5 bg-white rounded-xl shadow-xl hover:bg-primary hover:text-white transition-all hover:scale-110">
+                    <button onClick={() => handleToggleWishlist(item)} className="p-2.5 bg-white rounded-xl shadow-xl hover:bg-primary hover:text-white transition-all hover:scale-110">
                       <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-stone-700'}`} />
                     </button>
                     <button onClick={() => setQuickViewProduct(item)} className="p-2.5 bg-white rounded-xl shadow-xl hover:bg-primary hover:text-white transition-all hover:scale-110">

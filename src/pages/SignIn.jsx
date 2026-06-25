@@ -11,7 +11,7 @@ import { useShop } from "../ShopContext.jsx";
 const SignIn = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useShop();
+  const { login, addToCart, toggleWishlist, customer, authLoading } = useShop();
   
   const [inputValue, setInputValue] = useState("");
   const [password, setPassword] = useState("");
@@ -72,6 +72,21 @@ const SignIn = () => {
   }, []);
 
   useEffect(() => {
+    if (authLoading) return;
+    const token = sessionStorage.getItem("customer_token");
+    if (token || customer) {
+      navigate("/", { replace: true });
+    }
+  }, [authLoading, customer, navigate]);
+
+  useEffect(() => {
+    if (location.state?.registrationSuccess) {
+      setSuccessMsg(location.state.registrationSuccess);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state?.registrationSuccess, location.pathname, navigate]);
+
+  useEffect(() => {
     if (timer > 0) {
       const countdown = setInterval(() => setTimer(prev => prev - 1), 1000);
       return () => clearInterval(countdown);
@@ -129,16 +144,46 @@ const SignIn = () => {
     otpRefs.current[0]?.focus();
   };
 
-  const handleLogin = (e) => {
+  const getReturnPath = () => {
+    const from = location.state?.from;
+    if (from?.pathname) {
+      return `${from.pathname}${from.search || ""}${from.hash || ""}`;
+    }
+    return "/";
+  };
+
+  const handlePostLogin = async () => {
+    const pending = location.state?.pendingAction;
+    const returnPath = getReturnPath();
+
+    if (pending?.type === "addToCart" && pending.product) {
+      await addToCart(pending.product);
+      navigate(returnPath, { replace: true });
+      return;
+    }
+
+    if (pending?.type === "buyNow" && pending.product) {
+      await addToCart(pending.product);
+      navigate("/cart", { replace: true });
+      return;
+    }
+
+    if (pending?.type === "toggleWishlist" && pending.product) {
+      await toggleWishlist(pending.product);
+      navigate(returnPath, { replace: true });
+      return;
+    }
+
+    navigate(returnPath, { replace: true });
+  };
+
+  const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMsg("");
     setSuccessMsg("");
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-
+    try {
       if (isPhone) {
         if (!otpSent) {
           setOtpSent(true);
@@ -149,48 +194,39 @@ const SignIn = () => {
         } else {
           const otpString = otp.join("");
           if (otpString.length === 6) {
-            if (rememberMe) localStorage.setItem("rememberedEmail", inputValue);
-            else localStorage.removeItem("rememberedEmail");
-            
-            const userData = { phone: inputValue, name: "User" };
-            login(userData); // ✅ Update global state
-            
-            setSuccessMsg("✓ OTP Verified! Redirecting...");
-            // ✅ FIX: Navigate directly WITHOUT setTimeout
-            navigate("/profile", { replace: true });
+            setErrorMsg("Phone login is not available. Please sign in with your email.");
           } else {
             setErrorMsg("Please enter complete 6-digit OTP");
           }
         }
       } else if (isEmail) {
         if (password.length >= 6) {
-          const savedUser = JSON.parse(localStorage.getItem("userAuth"));
-          const isValidRegisteredUser = savedUser && inputValue === savedUser.email && password === savedUser.password;
-          const isTestAdmin = inputValue === "test@admin.com" && password === "123456";
-          
           if (rememberMe) localStorage.setItem("rememberedEmail", inputValue);
           else localStorage.removeItem("rememberedEmail");
-          
-          if (isValidRegisteredUser || isTestAdmin) {
-            const userData = isTestAdmin 
-              ? { email: "test@admin.com", name: "Admin" }
-              : savedUser;
-            login(userData); // ✅ Update global state
-            
-            setSuccessMsg("Login Successful! Redirecting...");
-            // ✅ FIX: Navigate directly WITHOUT setTimeout
-            navigate("/profile", { replace: true });
-          } else {
-            setErrorMsg("Invalid Email or Password. Please try again.");
-          }
+
+          await login(inputValue.trim(), password);
+          setSuccessMsg("Login Successful! Redirecting...");
+          await handlePostLogin();
         } else {
           setErrorMsg("Password must be at least 6 characters");
         }
       } else {
         setErrorMsg("Enter a valid email or 10-digit phone number starting with 6-9");
       }
-    }, 800);
+    } catch (error) {
+      setErrorMsg(error.response?.data?.message || "Login failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <div className="w-10 h-10 border-2 border-stone-200 border-t-primary rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full min-h-screen flex flex-col lg:flex-row bg-gradient-to-br from-stone-50 via-white to-stone-100">

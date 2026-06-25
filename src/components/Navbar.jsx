@@ -31,7 +31,8 @@ const Navbar = () => {
   
   const navigate = useNavigate();
   // ✅ STEP 2: Get user and logout from context
-  const { cart, wishlist, removeFromCart, updateQuantity, user, logout } = useShop();
+  const { cart, wishlist, removeFromCart, updateQuantity, customer, user, logout, fetchCart, fetchWishlist, openLoginModal } = useShop();
+  const activeCustomer = customer || user;
   
   // ✅ STEP 3: Remove isLoggedIn state - use user directly
 
@@ -184,7 +185,26 @@ useEffect(() => {
     return () => clearTimeout(timer);
   }, [charIndex, isDeleting, typingIndex, searchOpen]);
 
-  // ✅ STEP 1: REMOVE old useEffect that reads localStorage - not needed anymore
+  useEffect(() => {
+    const token = sessionStorage.getItem("customer_token");
+    if (token) {
+      fetchCart();
+      fetchWishlist();
+    }
+  }, [fetchCart, fetchWishlist, activeCustomer]);
+
+  useEffect(() => {
+    const onCartUpdated = () => fetchCart();
+    const onWishlistUpdated = () => fetchWishlist();
+
+    window.addEventListener("cart-updated", onCartUpdated);
+    window.addEventListener("wishlist-updated", onWishlistUpdated);
+
+    return () => {
+      window.removeEventListener("cart-updated", onCartUpdated);
+      window.removeEventListener("wishlist-updated", onWishlistUpdated);
+    };
+  }, [fetchCart, fetchWishlist]);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -218,23 +238,25 @@ useEffect(() => {
   };
 
   const handleUserIconClick = () => {
-    if (user) {
+    if (activeCustomer) {
       setShowUserMenu(false);
       navigate("/profile");
     } else {
-      navigate("/account");
+      openLoginModal({ from: { pathname: "/profile" } });
     }
   };
 
-  // ✅ STEP 5: Updated logout function using context logout
-  const handleLogout = () => {
-    logout(); // ✅ context logout
+  const handleLogout = async () => {
+    await logout();
     setShowUserMenu(false);
     navigate("/");
   };
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * (item.qty || 1)), 0);
-  const totalItems = cart.reduce((sum, item) => sum + (item.qty || 1), 0);
+  const totalItems = cart.reduce(
+    (sum, item) => sum + Number(item.qty || item.quantity || 1),
+    0
+  );
   const freeShippingThreshold = 999;
   const amountToFreeShipping = freeShippingThreshold - subtotal;
   const shippingProgress = Math.min((subtotal / freeShippingThreshold) * 100, 100);
@@ -358,7 +380,7 @@ useEffect(() => {
               {/* ✅ STEP 3: Use 'user' instead of 'isLoggedIn' */}
               <div 
                 className="relative hidden sm:flex" 
-                onMouseEnter={() => user && setShowUserMenu(true)} 
+                onMouseEnter={() => activeCustomer && setShowUserMenu(true)} 
                 onMouseLeave={() => setShowUserMenu(false)}
               >
                 <button 
@@ -366,16 +388,16 @@ useEffect(() => {
                   className="p-2 text-gray-600 hover:text-primary hover:bg-orange-50 rounded-full transition-all duration-200 relative cursor-pointer"
                 >
                   <User className="w-5 h-5" />
-                  {user && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white"></span>}
+                  {activeCustomer && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white"></span>}
                 </button>
 
                 {/* ✅ STEP 3: Use 'user' instead of 'isLoggedIn' */}
-                {user && showUserMenu && (
+                {activeCustomer && showUserMenu && (
                   <div className="absolute right-0 top-full pt-2 w-56 z-[100]">
                     <div className="bg-white shadow-[0_4px_16px_rgba(0,0,0,0.1)] border border-gray-100 py-3 rounded-sm animate-in fade-in zoom-in-95 duration-200">
                       {/* ✅ STEP 4: Use user?.name */}
                       <p className="px-5 mb-3 text-[15px] font-medium text-gray-800 tracking-wide">
-                        Welcome {user?.name?.split(' ')[0] || "User"}!
+                        Welcome {activeCustomer?.name?.split(' ')[0] || "User"}!
                       </p>
                       <div className="flex flex-col">
                         <Link to="/profile" onClick={() => setShowUserMenu(false)} className="flex items-center gap-4 px-5 py-2.5 text-[15px] text-gray-800 hover:text-primary transition-colors">
@@ -396,20 +418,29 @@ useEffect(() => {
                 )}
               </div>
               
-              <Link to="/profile?tab=wishlist" className="hidden sm:flex p-2 text-gray-600 hover:text-primary hover:bg-orange-50 rounded-full transition-all duration-200 relative">
+              <Link
+                to={activeCustomer ? "/profile?tab=wishlist" : "#"}
+                onClick={(e) => {
+                  if (!activeCustomer) {
+                    e.preventDefault();
+                    openLoginModal({ from: { pathname: "/profile", search: "?tab=wishlist" } });
+                  }
+                }}
+                className="hidden sm:flex p-2 text-gray-600 hover:text-primary hover:bg-orange-50 rounded-full transition-all duration-200 relative"
+              >
                 <Heart className="w-5 h-5" />
                 {wishlist.length > 0 && <span className="absolute -top-0.5 -right-0.5 bg-primary text-white text-[10px] min-w-[18px] h-[18px] rounded-full flex items-center justify-center font-bold shadow-md">{wishlist.length}</span>}
               </Link>
               
               <button
                 onClick={() => {
-                  if (user) navigate("/cart");
-                  else navigate("/account");
+                  if (activeCustomer) navigate("/cart");
+                  else openLoginModal({ from: { pathname: "/cart" } });
                 }}
                 className="p-2 text-gray-600 hover:text-primary hover:bg-orange-50 rounded-full transition-all duration-200 relative"
               >
                 <ShoppingCart className="w-5 h-5" />
-                {cart.length > 0 && (
+                {totalItems > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 bg-primary text-white text-[10px] min-w-[18px] h-[18px] rounded-full flex items-center justify-center font-bold shadow-md">
                     {totalItems}
                   </span>
@@ -551,9 +582,9 @@ useEffect(() => {
                 </Link>
               ))}
               <div className="mt-4 pt-4 border-t">
-                {user ? (
+                {activeCustomer ? (
                   <>
-                    <p className="text-sm font-semibold mb-2">Welcome, {user?.name?.split(' ')[0]}</p>
+                    <p className="text-sm font-semibold mb-2">Welcome, {activeCustomer?.name?.split(' ')[0]}</p>
                     <Link to="/profile" className="block py-2 text-gray-600" onClick={() => setMobileOpen(false)}>My Profile</Link>
                     <Link to="/profile?tab=orders" className="block py-2 text-gray-600" onClick={() => setMobileOpen(false)}>Order History</Link>
                     <Link to="/profile?tab=wishlist" className="block py-2 text-gray-600" onClick={() => setMobileOpen(false)}>Wishlist</Link>

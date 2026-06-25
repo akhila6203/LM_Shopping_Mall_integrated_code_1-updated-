@@ -9,11 +9,46 @@ import {
   Home, Briefcase, Trash2, Check, Circle, Upload, LogIn
 } from "lucide-react";
 import { useShop } from "../ShopContext.jsx";
+import { getMyOrders } from "@/services/orderService";
+import {
+  getAddresses,
+  createAddress,
+  updateAddress,
+  deleteAddress,
+  setDefaultAddress,
+} from "@/services/addressService";
+import { getCustomerProfile } from "@/services/customerAuthService";
+import { getImageUrl } from "@/api/axiosClient";
+
+const mapApiAddressToUi = (addr) => ({
+  id: addr.id,
+  type: addr.address_type === "billing" ? "Office" : "Home",
+  name: addr.full_name,
+  address: [addr.address_line1, addr.address_line2].filter(Boolean).join(", "),
+  city: addr.city,
+  state: addr.state,
+  pincode: addr.pincode,
+  phone: addr.phone,
+  isDefault: Number(addr.is_default) === 1,
+});
+
+const mapUiAddressToApi = (addr, isDefault = false) => ({
+  address_type: addr.type === "Office" ? "billing" : "shipping",
+  full_name: addr.name,
+  phone: addr.phone,
+  address_line1: addr.address,
+  address_line2: null,
+  city: addr.city,
+  state: addr.state,
+  pincode: addr.pincode,
+  country: "India",
+  is_default: isDefault ? 1 : 0,
+});
 
 const Profile = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { wishlist, cart, addToCart, removeFromWishlist, toggleWishlist, user, logout } = useShop();
+  const { wishlist, cart, addToCart, removeFromWishlist, toggleWishlist, user, logout, updateUser, refreshProfile } = useShop();
   const [activeTab, setActiveTab] = useState("overview");
   const [isEditing, setIsEditing] = useState(false);
   const [userData, setUserData] = useState(user);
@@ -73,7 +108,7 @@ const Profile = () => {
     setUserData(user);
     if (user) {
       setEditForm({
-        name: user.name || "",
+        name: user.name || `${user.first_name || ""} ${user.last_name || ""}`.trim(),
         email: user.email || "",
         phone: user.phone || "",
         address: user.address || "",
@@ -81,44 +116,84 @@ const Profile = () => {
         state: user.state || "",
         pincode: user.pincode || ""
       });
-      if (user.profilePhoto) {
-        setProfilePhotoPreview(user.profilePhoto);
+      if (user.profilePhoto || user.avatar) {
+        setProfilePhotoPreview(user.profilePhoto || getImageUrl(user.avatar));
       }
-    } else {
-      const rememberedEmail = localStorage.getItem("rememberedEmail");
-      if (rememberedEmail) {
-        const demoUser = {
-          name: "Priya Sharma",
-          email: rememberedEmail,
-          phone: "+91 98852 22227",
-          address: "123, Fashion Street",
-          city: "Mumbai",
-          state: "Maharashtra",
-          pincode: "400001"
-        };
-        setUserData(demoUser);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const loadProfileData = async () => {
+      try {
+        const profileRes = await getCustomerProfile();
+        const profile = profileRes?.data ?? profileRes;
+        if (profile?.addresses) {
+          setSavedAddresses(profile.addresses.map(mapApiAddressToUi));
+        }
+      } catch (error) {
+        console.error("Load profile addresses error:", error);
       }
+    };
+
+    const loadOrders = async () => {
+      try {
+        setOrdersLoading(true);
+        const data = await getMyOrders({ limit: 50 });
+        const list = Array.isArray(data) ? data : [];
+        setOrders(
+          list.map((order) => ({
+            id: order.order_number || order.id,
+            orderId: order.id,
+            date: order.created_at
+              ? new Date(order.created_at).toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })
+              : "",
+            status: order.order_status || "pending",
+            items: `${order.items_count || 0} item(s)`,
+            quantity: order.items_count || 1,
+            amount: Number(order.total_amount || 0),
+            image: "",
+          }))
+        );
+      } catch (error) {
+        console.error("Load orders error:", error);
+        setOrders([]);
+      } finally {
+        setOrdersLoading(false);
+      }
+    };
+
+    if (user) {
+      loadProfileData();
+      loadOrders();
     }
   }, [user]);
 
   const handleCameraClick = () => fileInputRef.current?.click();
 
-  const handleProfilePhotoChange = (e) => {
+  const handleProfilePhotoChange = async (e) => {
     const file = e.target.files[0];
-    if (file && file.type.startsWith('image/') && file.size <= 5 * 1024 * 1024) {
+    if (file && file.type.startsWith("image/") && file.size <= 5 * 1024 * 1024) {
       setIsUploading(true);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const photoData = reader.result;
-        setProfilePhotoPreview(photoData);
-        const updatedUser = { ...userData, profilePhoto: photoData };
-        localStorage.setItem("userAuth", JSON.stringify(updatedUser));
-        setUserData(updatedUser);
-        setIsUploading(false);
+      try {
+        const updated = await updateUser({ avatarFile: file });
+        if (updated?.avatar) {
+          setProfilePhotoPreview(getImageUrl(updated.avatar));
+        } else if (updated?.profilePhoto) {
+          setProfilePhotoPreview(updated.profilePhoto);
+        }
+        await refreshProfile();
         setSuccessMsg("Profile photo updated!");
         setTimeout(() => setSuccessMsg(""), 3000);
-      };
-      reader.readAsDataURL(file);
+      } catch (error) {
+        setErrorMsg(error.response?.data?.message || "Failed to upload photo");
+        setTimeout(() => setErrorMsg(""), 3000);
+      } finally {
+        setIsUploading(false);
+      }
     } else if (file) {
       setErrorMsg("Image must be under 5MB");
       setTimeout(() => setErrorMsg(""), 3000);
@@ -128,24 +203,34 @@ const Profile = () => {
   const handleRemovePhoto = () => {
     setProfilePhotoPreview(null);
     const updatedUser = { ...userData, profilePhoto: null };
-    localStorage.setItem("userAuth", JSON.stringify(updatedUser));
+    updateUser(updatedUser);
     setUserData(updatedUser);
     setSuccessMsg("Photo removed");
     setTimeout(() => setSuccessMsg(""), 3000);
   };
 
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (editForm.name.length < 3) {
       setErrorMsg("Name must be at least 3 characters");
       return;
     }
-    const updatedUser = { ...userData, ...editForm };
-    localStorage.setItem("userAuth", JSON.stringify(updatedUser));
-    setUserData(updatedUser);
-    setIsEditing(false);
-    setSuccessMsg("Profile updated!");
-    setTimeout(() => setSuccessMsg(""), 3000);
+    try {
+      const nameParts = editForm.name.trim().split(" ");
+      await updateUser({
+        first_name: nameParts[0] || "",
+        last_name: nameParts.slice(1).join(" ") || "",
+        phone: editForm.phone,
+        name: editForm.name,
+      });
+      await refreshProfile();
+      setIsEditing(false);
+      setSuccessMsg("Profile updated!");
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (error) {
+      setErrorMsg(error.response?.data?.message || "Failed to update profile");
+      setTimeout(() => setErrorMsg(""), 3000);
+    }
   };
 
   const handleLogout = () => {
@@ -154,57 +239,84 @@ const Profile = () => {
     navigate("/");
   };
 
-  const [orders, setOrders] = useState([
-    { id: "LM-240315", date: "15 Mar 2024", status: "Delivered", items: "Banarasi Silk Saree", quantity: 1, amount: 8999, image: "https://ik.imagekit.io/4sjmoqtje/tr:w-370,c-at_max/cdn/shop/files/red-organza-saree-with-florals-and-cutdana-border-sg297625-2.jpg?v=1748335622" },
-    { id: "LM-240228", date: "28 Feb 2024", status: "Processing", items: "Designer Kurta Set", quantity: 2, amount: 9998, image: "https://ik.imagekit.io/4sjmoqtje/tr:w-370,c-at_max/cdn/shop/files/sg187123_1.jpg?v=1744183756" },
-    { id: "LM-240210", date: "10 Feb 2024", status: "Delivered", items: "Wedding Lehenga", quantity: 1, amount: 24999, image: "https://ik.imagekit.io/4sjmoqtje/tr:w-370,c-at_max/cdn/shop/files/gold_toned_tissue_saree-sg157605_14.jpg?v=1755163097" },
-    { id: "LM-240125", date: "25 Jan 2024", status: "Shipped", items: "Silk Organza Saree", quantity: 1, amount: 12499, image: "https://ik.imagekit.io/4sjmoqtje/tr:w-370,c-at_max/cdn/shop/files/light_blue_crushed_tissue_saree-sg286746-9_8.jpg?v=1747484543" },
-  ]);
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
 
-  const [savedAddresses, setSavedAddresses] = useState([
-    { id: 1, type: "Home", name: "Priya Sharma", address: "123, Fashion Street, Bandra West", city: "Mumbai", state: "Maharashtra", pincode: "400001", phone: "+91 98852 22227", isDefault: true },
-    { id: 2, type: "Office", name: "Priya Sharma", address: "456, Corporate Park, BKC", city: "Mumbai", state: "Maharashtra", pincode: "400051", phone: "+91 98852 22227", isDefault: false },
-  ]);
+  const [savedAddresses, setSavedAddresses] = useState([]);
 
-  const handleAddAddress = () => {
+  const refetchAddresses = async () => {
+    try {
+      const addresses = await getAddresses();
+      setSavedAddresses((addresses || []).map(mapApiAddressToUi));
+    } catch (error) {
+      console.error("Refetch addresses error:", error);
+    }
+  };
+
+  const handleAddAddress = async () => {
     if (!tempAddress.name || !tempAddress.address || !tempAddress.city || !tempAddress.pincode) {
       setErrorMsg("Please fill all required fields");
       return;
     }
-    const newId = Math.max(...savedAddresses.map(a => a.id), 0) + 1;
-    const newAddress = { ...tempAddress, id: newId, isDefault: savedAddresses.length === 0 };
-    setSavedAddresses([...savedAddresses, newAddress]);
-    setShowAddressModal(false);
-    setTempAddress({ type: "Home", name: "", address: "", city: "", state: "", pincode: "", phone: "" });
-    setSuccessMsg("Address added!");
-    setTimeout(() => setSuccessMsg(""), 3000);
+    try {
+      await createAddress(
+        mapUiAddressToApi(tempAddress, savedAddresses.length === 0)
+      );
+      await refetchAddresses();
+      setShowAddressModal(false);
+      setTempAddress({ type: "Home", name: "", address: "", city: "", state: "", pincode: "", phone: "" });
+      setSuccessMsg("Address added!");
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (error) {
+      setErrorMsg(error.response?.data?.message || "Failed to add address");
+      setTimeout(() => setErrorMsg(""), 3000);
+    }
   };
 
-  const handleUpdateAddress = () => {
+  const handleUpdateAddress = async () => {
     if (!tempAddress.name || !tempAddress.address || !tempAddress.city || !tempAddress.pincode) {
       setErrorMsg("Please fill all required fields");
       return;
     }
-    setSavedAddresses(savedAddresses.map(addr => 
-      addr.id === editingAddress.id ? { ...tempAddress, id: addr.id, isDefault: addr.isDefault } : addr
-    ));
-    setShowAddressModal(false);
-    setEditingAddress(null);
-    setTempAddress({ type: "Home", name: "", address: "", city: "", state: "", pincode: "", phone: "" });
-    setSuccessMsg("Address updated!");
-    setTimeout(() => setSuccessMsg(""), 3000);
+    try {
+      await updateAddress(
+        editingAddress.id,
+        mapUiAddressToApi(tempAddress, editingAddress.isDefault)
+      );
+      await refetchAddresses();
+      setShowAddressModal(false);
+      setEditingAddress(null);
+      setTempAddress({ type: "Home", name: "", address: "", city: "", state: "", pincode: "", phone: "" });
+      setSuccessMsg("Address updated!");
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (error) {
+      setErrorMsg(error.response?.data?.message || "Failed to update address");
+      setTimeout(() => setErrorMsg(""), 3000);
+    }
   };
 
-  const handleDeleteAddress = (id) => {
-    setSavedAddresses(savedAddresses.filter(addr => addr.id !== id));
-    setSuccessMsg("Address deleted!");
-    setTimeout(() => setSuccessMsg(""), 3000);
+  const handleDeleteAddress = async (id) => {
+    try {
+      await deleteAddress(id);
+      await refetchAddresses();
+      setSuccessMsg("Address deleted!");
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (error) {
+      setErrorMsg(error.response?.data?.message || "Failed to delete address");
+      setTimeout(() => setErrorMsg(""), 3000);
+    }
   };
 
-  const setDefaultAddress = (id) => {
-    setSavedAddresses(savedAddresses.map(addr => ({ ...addr, isDefault: addr.id === id })));
-    setSuccessMsg("Default address updated!");
-    setTimeout(() => setSuccessMsg(""), 3000);
+  const setDefaultAddressHandler = async (id) => {
+    try {
+      await setDefaultAddress(id);
+      await refetchAddresses();
+      setSuccessMsg("Default address updated!");
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (error) {
+      setErrorMsg(error.response?.data?.message || "Failed to set default address");
+      setTimeout(() => setErrorMsg(""), 3000);
+    }
   };
 
   const handleReorder = (order) => {
@@ -609,7 +721,7 @@ const Profile = () => {
                       <p className="text-xs text-stone-500">{addr.city}, {addr.state} - {addr.pincode}</p>
                       <p className="text-xs text-stone-500 mt-0.5">{addr.phone}</p>
                       {!addr.isDefault && (
-                        <button onClick={() => setDefaultAddress(addr.id)} className="text-xs text-primary mt-2 hover:underline">
+                        <button onClick={() => setDefaultAddressHandler(addr.id)} className="text-xs text-primary mt-2 hover:underline">
                           Set as Default
                         </button>
                       )}

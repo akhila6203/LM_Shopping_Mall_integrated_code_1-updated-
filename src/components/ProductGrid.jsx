@@ -3,11 +3,14 @@ import { useEffect, useState } from "react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Link } from "react-router-dom";
 import { useShop } from "../ShopContext.jsx";
+import { useProtectedActions } from "@/hooks/useProtectedActions";
 import { getProducts } from "@/services/productService";
 import { getImageUrl } from "@/api/axiosClient";
+import { extractProductSizes } from "@/utils/productHelpers";
 
 const ProductCard = ({ product, index, isVisible }) => {
-  const { addToCart, toggleWishlist, wishlist } = useShop();
+  const { wishlist } = useShop();
+  const { handleAddToCart, handleToggleWishlist } = useProtectedActions();
 
   if (!product.slug) return null;
 
@@ -38,20 +41,29 @@ const ProductCard = ({ product, index, isVisible }) => {
       ? "Featured"
       : null;
 
-  const handleAddToCart = (e) => {
+  const handleAddToCartClick = async (e) => {
     e.preventDefault();
     e.stopPropagation();
 
-    addToCart({
-      id: product.id,
-      slug: product.slug,
-      name: product.name,
-      price,
-      oldPrice: originalPrice,
-      image,
+    const sizes = extractProductSizes(product);
+
+    await handleAddToCart({
+      product_id: product.id,
+      variant_id: null,
       quantity: 1,
-      category: product.category_name || "",
-      stock: product.stock || 0,
+      selected_size: sizes[0] || "Free Size",
+      selected_color: product.color || "",
+      item_price: Number(product.offer_price || product.price || 0),
+      item_data: {
+        image,
+        slug: product.slug,
+        name: product.name,
+        brand: product.brand || "",
+        fabric: product.fabric || "",
+        material: product.material || "",
+        sizes,
+        colors: product.colors || [],
+      },
     });
   };
 
@@ -59,7 +71,7 @@ const ProductCard = ({ product, index, isVisible }) => {
     e.preventDefault();
     e.stopPropagation();
 
-    toggleWishlist({
+    handleToggleWishlist({
       id: product.id,
       slug: product.slug,
       name: product.name,
@@ -111,7 +123,7 @@ const ProductCard = ({ product, index, isVisible }) => {
 
         <button
           type="button"
-          onClick={handleAddToCart}
+          onClick={handleAddToCartClick}
           className="absolute bottom-3 left-3 right-3 bg-primary text-primary-foreground py-2 md:py-2.5 rounded-lg font-medium text-xs md:text-sm flex items-center justify-center gap-2 translate-y-full opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 hover:bg-primary/90 active:scale-[0.98] z-10"
         >
           <ShoppingCart className="w-3.5 h-3.5 md:w-4 md:h-4" />

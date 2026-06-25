@@ -10,10 +10,12 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useShop } from "../ShopContext.jsx";
+import { useProtectedActions } from "@/hooks/useProtectedActions";
 import { getProducts } from "@/services/productService";
 import { getCategoryHierarchy } from "@/services/categoryService";
 import { getImageUrl } from "@/api/axiosClient";
 import { getCollectionById } from "@/services/collectionService";
+import { extractProductSizes } from "@/utils/productHelpers";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=600&fit=crop";
@@ -30,7 +32,8 @@ const ProductListing = () => {
   const [addedToCart, setAddedToCart] = useState({});
   const [loading, setLoading] = useState(false);
 
-  const { addToCart, toggleWishlist, wishlist, cart } = useShop();
+  const { wishlist, cart } = useShop();
+  const { handleAddToCart: addToCartProtected, handleToggleWishlist } = useProtectedActions();
 
   useEffect(() => {
     const loadListingData = async () => {
@@ -170,21 +173,32 @@ const ProductListing = () => {
     if (product.slug) navigate(`/product/${product.slug}`);
   };
 
-  const handleAddToCart = (e, product) => {
+  const handleAddToCart = async (e, product) => {
     e.preventDefault();
     e.stopPropagation();
 
-    addToCart({
-      id: product.id,
-      slug: product.slug,
-      name: product.name,
-      price: product.price,
-      oldPrice: product.oldPrice,
-      image: product.image,
-      qty: 1,
-      category: product.categoryText,
-      stock: product.stockLeft,
+    const sizes = extractProductSizes(product);
+
+    const success = await addToCartProtected({
+      product_id: product.id,
+      variant_id: null,
+      quantity: 1,
+      selected_size: sizes[0] || "Free Size",
+      selected_color: product.color || "",
+      item_price: Number(product.offer_price || product.price || 0),
+      item_data: {
+        image: product.image,
+        slug: product.slug,
+        name: product.name,
+        brand: product.brand || "",
+        fabric: product.fabric || "",
+        material: product.material || "",
+        sizes,
+        colors: product.colors || [],
+      },
     });
+
+    if (!success) return;
 
     setAddedToCart((prev) => ({ ...prev, [product.id]: true }));
 
@@ -293,7 +307,7 @@ const ProductListing = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          toggleWishlist(product);
+                          handleToggleWishlist(product);
                         }}
                         className="p-2 bg-white rounded-full shadow hover:bg-primary hover:text-white transition"
                       >

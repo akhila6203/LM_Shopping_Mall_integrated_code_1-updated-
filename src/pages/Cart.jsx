@@ -4,19 +4,29 @@ import {
   Trash2, ShoppingCart, Heart, ArrowRight, ChevronLeft, Truck,
   Shield, Award, Sparkles, Percent, Minus, Plus,
 } from "lucide-react";
-import axiosClient from "@/api/axiosClient";
+import { useShop } from "../ShopContext.jsx";
+import { validateCoupon } from "@/services/couponService";
 import { getImageUrl } from "@/api/axiosClient";
 
 const Cart = () => {
   const navigate = useNavigate();
+  const {
+    cart,
+    cartLoading,
+    fetchCart,
+    removeFromCart: removeCartItem,
+    updateQuantity: updateCartQuantity,
+    updateSize: updateCartSize,
+    clearCart: clearCartItems,
+    wishlist,
+    toggleWishlist,
+  } = useShop();
 
-  const [cart, setCart] = useState([]);
-  const [wishlist, setWishlist] = useState([]);
   const [couponCode, setCouponCode] = useState("");
   const [couponApplied, setCouponApplied] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [discount, setDiscount] = useState(0);
   const [couponMessage, setCouponMessage] = useState("");
-  const [loading, setLoading] = useState(false);
 
   const getNumericPrice = (priceVal) => {
     if (typeof priceVal === "number") return priceVal;
@@ -25,49 +35,12 @@ const Cart = () => {
     return Number(cleanString) || 0;
   };
 
-  const normalizeCartItem = (item) => ({
-    ...item,
-    cartItemId: item.cartItemId || item.cart_id || item.id,
-    id: item.product_id || item.id,
-    qty: Number(item.qty || item.quantity || 1),
-    size: item.size || item.selected_size || "Free Size",
-    color: item.color || item.selected_color || "",
-    price: Number(item.price || item.item_price || item.offer_price || 0),
-    oldPrice: item.oldPrice || item.old_price || item.price,
-    image: item.image || item.thumbnail,
-    sizes: item.sizes?.length ? item.sizes : [item.size || item.selected_size || "Free Size"],
-  });
-
-  const fetchCart = async () => {
-    try {
-      setLoading(true);
-      const res = await axiosClient.get("/cart");
-      const rows = res.data?.data || [];
-      setCart(rows.map(normalizeCartItem));
-    } catch (error) {
-      console.error("Fetch cart error:", error);
-      setCart([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchWishlist = async () => {
-    try {
-      const res = await axiosClient.get("/wishlist");
-      setWishlist(res.data?.data || []);
-    } catch {
-      setWishlist([]);
-    }
-  };
-
   useEffect(() => {
     fetchCart();
-    fetchWishlist();
-  }, []);
+  }, [fetchCart]);
 
   const totalQuantity = useMemo(
-    () => cart.reduce((sum, item) => sum + Number(item.qty || 1), 0),
+    () => cart.reduce((sum, item) => sum + Number(item.qty || item.quantity || 1), 0),
     [cart]
   );
 
@@ -85,67 +58,29 @@ const Cart = () => {
 
   const resetCoupon = () => {
     setCouponApplied(false);
+    setAppliedCoupon(null);
     setDiscount(0);
     setCouponMessage("");
   };
 
   const updateQuantity = async (cartId, qty) => {
-    try {
-      await axiosClient.put(`/cart/${cartId}`, { quantity: qty });
-      await fetchCart();
-      resetCoupon();
-      window.dispatchEvent(new Event("cart-updated"));
-    } catch (error) {
-      console.error("Update quantity error:", error);
-      alert(error.response?.data?.message || "Quantity update avvaledu");
-    }
+    await updateCartQuantity(cartId, qty);
+    resetCoupon();
   };
 
   const updateSize = async (cartId, size) => {
-    try {
-      await axiosClient.put(`/cart/${cartId}`, { selected_size: size });
-      await fetchCart();
-      resetCoupon();
-      window.dispatchEvent(new Event("cart-updated"));
-    } catch (error) {
-      console.error("Update size error:", error);
-      alert(error.response?.data?.message || "Size update avvaledu");
-    }
+    await updateCartSize(cartId, size);
+    resetCoupon();
   };
 
   const removeFromCart = async (cartId) => {
-    try {
-      await axiosClient.delete(`/cart/${cartId}`);
-      await fetchCart();
-      resetCoupon();
-      window.dispatchEvent(new Event("cart-updated"));
-    } catch (error) {
-      console.error("Remove cart error:", error);
-      alert(error.response?.data?.message || "Remove avvaledu");
-    }
+    await removeCartItem(cartId);
+    resetCoupon();
   };
 
   const clearCart = async () => {
-    try {
-      await axiosClient.delete("/cart");
-      setCart([]);
-      resetCoupon();
-      window.dispatchEvent(new Event("cart-updated"));
-    } catch (error) {
-      console.error("Clear cart error:", error);
-      alert(error.response?.data?.message || "Cart clear avvaledu");
-    }
-  };
-
-  const toggleWishlist = async (item) => {
-    try {
-      await axiosClient.post("/wishlist/toggle", {
-        product_id: item.id || item.product_id,
-      });
-      await fetchWishlist();
-    } catch {
-      alert("Wishlist ki login required");
-    }
+    await clearCartItems();
+    resetCoupon();
   };
 
   const applyCoupon = async () => {
@@ -155,33 +90,15 @@ const Cart = () => {
         return;
       }
 
-      const res = await axiosClient.post("/coupons/validate", {
+      const result = await validateCoupon({
         code: couponCode.trim().toUpperCase(),
         order_amount: subtotal,
-        cart_total: subtotal,
       });
 
-      const coupon = res.data?.data || res.data?.coupon || res.data;
-
-      const type = coupon.type || coupon.discount_type;
-      const value = Number(coupon.value || coupon.discount_value || 0);
-      const maxDiscount = Number(coupon.maximum_discount || coupon.max_discount || 0);
-
-      let discountAmount = 0;
-
-      if (type === "flat" || type === "fixed") {
-        discountAmount = value;
-      } else {
-        discountAmount = Math.round(subtotal * (value / 100));
-      }
-
-      if (maxDiscount > 0) {
-        discountAmount = Math.min(discountAmount, maxDiscount);
-      }
-
-      setDiscount(discountAmount);
+      setAppliedCoupon(result);
+      setDiscount(result.discount_amount);
       setCouponApplied(true);
-      setCouponMessage(coupon.message || "Coupon applied successfully!");
+      setCouponMessage(result.message || "Coupon applied successfully!");
     } catch (error) {
       console.error("Coupon apply error:", error);
       resetCoupon();
@@ -197,8 +114,12 @@ const Cart = () => {
 
     navigate("/checkout", {
       state: {
-        coupon_code: couponApplied ? couponCode.trim().toUpperCase() : "",
+        coupon_id: appliedCoupon?.coupon_id || null,
+        coupon_code: couponApplied ? appliedCoupon?.coupon_code || couponCode.trim().toUpperCase() : "",
+        coupon_type: appliedCoupon?.coupon_type || "",
+        coupon_value: appliedCoupon?.coupon_value || 0,
         discount_amount: discount,
+        coupon_message: couponMessage,
         subtotal,
         shipping,
         total,
@@ -280,7 +201,7 @@ const Cart = () => {
               )}
             </div>
 
-            {loading ? (
+            {cartLoading ? (
               <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-12 text-center">
                 Loading cart...
               </div>

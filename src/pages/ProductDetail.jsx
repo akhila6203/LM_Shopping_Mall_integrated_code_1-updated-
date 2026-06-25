@@ -19,9 +19,10 @@ import {
   Share2,
   Ruler,
 } from "lucide-react";
-// import { useShop } from "../ShopContext.jsx";
+import { useShop } from "../ShopContext.jsx";
+import { useProtectedActions } from "@/hooks/useProtectedActions";
 import { getProductBySlug, getProducts } from "@/services/productService";
-import axiosClient, { getImageUrl } from "@/api/axiosClient";
+import { getImageUrl } from "@/api/axiosClient";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=600&fit=crop";
@@ -157,9 +158,8 @@ const ProductDetail = () => {
   const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const [cart, setCart] = useState([]);
-const [wishlist, setWishlist] = useState([]);
-  // const { addToCart, toggleWishlist, wishlist = [], cart = [] } = useShop();
+  const { wishlist = [], cart = [], fetchCart } = useShop();
+  const { handleAddToCart: protectedAddToCart, handleBuyNow: protectedBuyNow, handleToggleWishlist: protectedToggleWishlist } = useProtectedActions();
 
   const normalizeImage = (img) => {
     if (!img) return FALLBACK_IMAGE;
@@ -199,35 +199,12 @@ const [wishlist, setWishlist] = useState([]);
     return unique(imgs).length ? unique(imgs) : [FALLBACK_IMAGE];
   };
 
-  const fetchCart = async () => {
-  try {
-    const res = await axiosClient.get("/cart");
-    setCart(res.data?.data || []);
-  } catch (error) {
-    console.error("Fetch cart error:", error);
-    setCart([]);
-  }
-};
-
-const fetchWishlist = async () => {
-  try {
-    const res = await axiosClient.get("/wishlist");
-    setWishlist(res.data?.data || []);
-  } catch {
-    setWishlist([]);
-  }
-};
-
-const toggleWishlist = async () => {
-  try {
-    await axiosClient.post("/wishlist/toggle", {
+  const handleToggleWishlist = async () => {
+    await protectedToggleWishlist({
+      id: product.id,
       product_id: product.id,
     });
-    await fetchWishlist();
-  } catch {
-    alert("Wishlist ki login required");
-  }
-};
+  };
 
   const normalizeProduct = (data) => {
     const baseImages = getProductBaseImages(data);
@@ -312,10 +289,22 @@ const toggleWishlist = async () => {
   // }, [currentColorVariants, product]);
 
   const availableSizes = useMemo(() => {
-    if (!currentColorVariants.length) return product?.sizes || [];
-    return unique(
-      currentColorVariants.map((variant) => getOptionValue(variant, "size") || variant.size)
+    const allVariantSizes = unique(
+      (product?.variants || []).map(
+        (variant) => getOptionValue(variant, "size") || variant.size
+      )
     );
+
+    if (currentColorVariants.length) {
+      return unique(
+        currentColorVariants.map(
+          (variant) => getOptionValue(variant, "size") || variant.size
+        )
+      );
+    }
+
+    if (allVariantSizes.length) return allVariantSizes;
+    return product?.sizes?.length ? product.sizes : ["Free Size"];
   }, [currentColorVariants, product]);
 
   const applyVariantByColorSize = (color, size) => {
@@ -430,8 +419,7 @@ const toggleWishlist = async () => {
 
     loadProduct();
     fetchCart();
-  fetchWishlist();
-  }, [slug]);
+  }, [slug, fetchCart]);
 
   useEffect(() => {
     setSelectedImage(0);
@@ -515,15 +503,13 @@ const toggleWishlist = async () => {
   };
 
   const handleAddToCart = async () => {
-  if (isInCart) {
-    navigate("/cart");
-    return true;
-  }
+    if (isInCart) {
+      navigate("/cart");
+      return true;
+    }
 
-  try {
     const qty = Number(quantity) || 1;
-
-    await axiosClient.post("/cart", {
+    const productPayload = {
       product_id: product.id,
       variant_id: selectedVariant?.id || null,
       quantity: qty,
@@ -540,26 +526,46 @@ const toggleWishlist = async () => {
         slug: product.slug,
         name: product.name,
       },
-    });
+    };
 
-    
+    const success = await protectedAddToCart(productPayload);
 
-    setAddedToCart(true);
-    setShowToast(`${qty} item(s) added to cart!`);
-    window.dispatchEvent(new Event("cart-updated"));
+    if (success) {
+      setAddedToCart(true);
+      setShowToast(`${qty} item(s) added to cart!`);
+      setTimeout(() => setShowToast(null), 2000);
+    }
 
-    setTimeout(() => setShowToast(null), 2000);
-    return true;
-  } catch (error) {
-    console.error("Add to cart API error:", error);
-    alert(error.response?.data?.message || "Cart lo add avvaledu");
-    return false;
-  }
-};
+    return success;
+  };
 
   const handleBuyNow = async () => {
-    await handleAddToCart();
-    navigate("/cart");
+    if (isInCart) {
+      navigate("/cart");
+      return;
+    }
+
+    const qty = Number(quantity) || 1;
+    const productPayload = {
+      product_id: product.id,
+      variant_id: selectedVariant?.id || null,
+      quantity: qty,
+      selected_size: selectedSize || "Free Size",
+      selected_color: selectedColor || "",
+      item_price: currentPrice,
+      item_data: {
+        sizes: availableSizes?.length ? availableSizes : [selectedSize || "Free Size"],
+        colors: product.colors || [],
+        image: productImages[selectedImage] || product.image,
+        fabric: currentFabric || "",
+        material: currentMaterial || "",
+        brand: product.brand || "",
+        slug: product.slug,
+        name: product.name,
+      },
+    };
+
+    await protectedBuyNow(productPayload);
   };
 
   const MiniCard = ({ item }) => (
@@ -664,8 +670,7 @@ const toggleWishlist = async () => {
                   </div>
 
                   <button
-                   onClick={toggleWishlist}
-                    // onClick={() => toggleWishlist(product)}
+                   onClick={handleToggleWishlist}
                     className={`absolute top-4 right-4 p-2.5 shadow-md transition-all hover:scale-110 ${
                       isInWishlist ? "bg-primary text-white" : "bg-white text-stone-600"
                     }`}

@@ -60,6 +60,56 @@ export const getSubCategoriesForMain = (mainSlug) => {
   return main?.sub_categories || [];
 };
 
+const parseOptionValue = (variant, key) => {
+  if (!variant) return "";
+  const raw = variant.option_values;
+  if (Array.isArray(raw)) {
+    const found = raw.find(
+      (opt) => String(opt?.name || "").toLowerCase() === key.toLowerCase()
+    );
+    if (found?.value) return String(found.value).trim();
+  }
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const found = parsed.find(
+          (opt) => String(opt?.name || "").toLowerCase() === key.toLowerCase()
+        );
+        if (found?.value) return String(found.value).trim();
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return variant[key] ? String(variant[key]).trim() : "";
+};
+
+export const extractProductSizes = (product = {}) => {
+  const sizes = new Set();
+
+  const addSize = (value) => {
+    const size = String(value || "").trim();
+    if (size) sizes.add(size);
+  };
+
+  [product.sizes, product.available_sizes, product.size_options].forEach((source) => {
+    if (Array.isArray(source)) {
+      source.forEach(addSize);
+    } else if (typeof source === "string") {
+      source.split(",").forEach(addSize);
+    }
+  });
+
+  (product.variants || []).forEach((variant) => {
+    addSize(parseOptionValue(variant, "size") || variant.size);
+  });
+
+  if (!sizes.size) addSize("Free Size");
+
+  return [...sizes];
+};
+
 export const buildNavbarLinks = () => {
   const priority = ["women", "men", "accessories"];
 

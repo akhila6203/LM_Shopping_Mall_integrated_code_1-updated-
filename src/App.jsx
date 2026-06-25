@@ -12,6 +12,7 @@ import ProtectedRoute from "./ProtectedRoute.jsx";
 // --> YAHAN AAPKA NAYA VIDEO POPUP IMPORT KIYA HAI <--
 import VideoPopup from "./pages/VideoPopup.jsx"; 
 import FloatingVideoWidget from "./FloatingVideoWidget.jsx"; 
+import LoginModal from "./components/LoginModal.jsx";
 
 // --> PAGES IMPORT <--
 import Index from "./pages/Index.jsx";
@@ -35,6 +36,7 @@ import Register from "./pages/Register.jsx";
 import TrackOrder from "./pages/TrackOrder.jsx";
 import Faq from "./pages/Faq.jsx";
 import Checkout from "./pages/Checkout.jsx";
+import OrderSuccess from "./pages/OrderSuccess.jsx";
 import NotFound from "./pages/NotFound.jsx";
 import Profile from "./pages/Profile.jsx";
 
@@ -86,7 +88,7 @@ const App = () => {
               <Route path="/about" element={<About />} />
               <Route path="/account" element={<SignIn />} />
               <Route path="/signin" element={<SignIn />} />
-              <Route path="/cart" element={<Cart />} />
+              <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
               <Route path="/register" element={<Register />} />
               <Route path="/faq" element={<Faq />} />
 
@@ -100,10 +102,7 @@ const App = () => {
                 path="/wishlist" 
                 element={<ProtectedRoute><Wishlist /></ProtectedRoute>} 
               />
-              <Route 
-                path="/track-order" 
-                element={<ProtectedRoute><TrackOrder /></ProtectedRoute>} 
-              />
+              <Route path="/track-order" element={<TrackOrder />} />
               <Route 
                 path="/profile" 
                 element={<ProtectedRoute><Profile /></ProtectedRoute>} 
@@ -111,6 +110,10 @@ const App = () => {
               <Route 
                 path="/checkout" 
                 element={<ProtectedRoute><Checkout /></ProtectedRoute>} 
+              />
+              <Route 
+                path="/order-success" 
+                element={<ProtectedRoute><OrderSuccess /></ProtectedRoute>} 
               />
               
               {/* 🔥 ORDER HISTORY - Redirects to Profile with tab parameter */}
@@ -129,6 +132,7 @@ const App = () => {
           {/* 🌟 POPUPS AUR WIDGETS 🌟 */}
           <VideoPopup />
           <FloatingVideoWidget />
+          <LoginModal />
 
         </div>
       </BrowserRouter>

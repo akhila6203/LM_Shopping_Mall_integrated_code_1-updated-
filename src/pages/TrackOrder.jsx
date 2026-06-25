@@ -1,67 +1,154 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { 
   PackageSearch, CheckCircle, Truck, MapPin, Search, Sparkles,
   Clock, Shield, Award, Calendar, ChevronRight, XCircle,
   ArrowRight, ShoppingBag, HelpCircle, Phone, Mail, Globe,
   Share2, Download
 } from "lucide-react";
+import { useShop } from "../ShopContext.jsx";
+import { getMyOrders, getMyOrder, getOrderByNumber } from "@/services/orderService";
+
+const formatStatusLabel = (status = "") =>
+  status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+const buildTimelineFromOrder = (order) => {
+  const apiTimeline = order?.timeline || [];
+  if (apiTimeline.length) {
+    return apiTimeline.map((step, index) => ({
+      title: formatStatusLabel(step.status),
+      date: step.created_at
+        ? new Date(step.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })
+        : "Pending",
+      time: step.created_at
+        ? new Date(step.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+        : "",
+      done: index < apiTimeline.length,
+      desc: step.note || "Order update",
+      icon: index === apiTimeline.length - 1 ? Truck : CheckCircle,
+    }));
+  }
+
+  return [
+    {
+      title: formatStatusLabel(order?.order_status || "pending"),
+      date: order?.created_at
+        ? new Date(order.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })
+        : "Pending",
+      time: "",
+      done: true,
+      desc: "Order placed successfully",
+      icon: CheckCircle,
+    },
+  ];
+};
 
 const TrackOrder = () => {
-  const [orderId, setOrderId] = useState("");
+  const { customer } = useShop();
+  const [searchParams] = useSearchParams();
+  const [orderId, setOrderId] = useState(searchParams.get("order") || "");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [recentOrders, setRecentOrders] = useState([]);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  // Load recent tracked orders from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem("recentTrackedOrders");
-    if (saved) {
-      setRecentOrders(JSON.parse(saved).slice(0, 3));
+    if (customer?.email) {
+      setEmail(customer.email);
     }
+  }, [customer]);
+
+  useEffect(() => {
+    const loadRecentOrders = async () => {
+      if (!sessionStorage.getItem("customer_token")) {
+        setRecentOrders([]);
+        return;
+      }
+      try {
+        const data = await getMyOrders({ limit: 5 });
+        const list = Array.isArray(data) ? data : [];
+        setRecentOrders(
+          list.map((order) => ({
+            orderId: order.order_number,
+            status: formatStatusLabel(order.order_status),
+            date: order.created_at
+              ? new Date(order.created_at).toLocaleDateString("en-IN", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })
+              : "",
+          }))
+        );
+      } catch (error) {
+        console.error("Load recent orders error:", error);
+      }
+    };
+
+    loadRecentOrders();
   }, []);
 
-  const saveToRecent = (orderData) => {
-    const recent = JSON.parse(localStorage.getItem("recentTrackedOrders") || "[]");
-    const updated = [orderData, ...recent.filter(o => o.orderId !== orderData.orderId)].slice(0, 5);
-    localStorage.setItem("recentTrackedOrders", JSON.stringify(updated));
-    setRecentOrders(updated.slice(0, 3));
-  };
+  useEffect(() => {
+    const queryOrder = searchParams.get("order");
+    if (queryOrder) {
+      setOrderId(queryOrder);
+      trackOrderByNumber(queryOrder);
+    }
+  }, [searchParams]);
 
-  const handleTrack = (e) => {
-    e.preventDefault();
+  const trackOrderByNumber = async (orderNumber) => {
     setLoading(true);
-    setResult(null); 
+    setResult(null);
+    setErrorMsg("");
 
-    setTimeout(() => {
+    try {
+      let order = await getOrderByNumber(orderNumber);
+      if (!order?.id) {
+        const orders = await getMyOrders({ limit: 100 });
+        order = (Array.isArray(orders) ? orders : []).find(
+          (item) =>
+            String(item.order_number).toUpperCase() === String(orderNumber).toUpperCase()
+        );
+      }
+
+      if (!order?.id) {
+        setErrorMsg("Order not found. Please check your order number.");
+        return;
+      }
+
+      const fullOrder = await getMyOrder(order.id);
+      setResult({
+        orderId: fullOrder.order_number,
+        orderDbId: fullOrder.id,
+        status: formatStatusLabel(fullOrder.order_status),
+        expectedDate: fullOrder.created_at
+          ? new Date(
+              new Date(fullOrder.created_at).getTime() + 5 * 24 * 60 * 60 * 1000
+            ).toLocaleDateString("en-IN", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })
+          : "",
+        courier: fullOrder.courier_name || "Standard Delivery",
+        trackingNumber: fullOrder.tracking_number || fullOrder.order_number,
+        timeline: buildTimelineFromOrder(fullOrder),
+      });
+    } catch (error) {
+      console.error("Track order error:", error);
+      setErrorMsg(error.response?.data?.message || "Unable to fetch order details.");
+    } finally {
       setLoading(false);
-      const orderResult = {
-        orderId: orderId.toUpperCase() || `LM${Math.floor(100000 + Math.random() * 900000)}`,
-        status: "In Transit",
-        expectedDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', { 
-          year: 'numeric', month: 'long', day: 'numeric' 
-        }),
-        courier: "Delhivery Express",
-        trackingNumber: `DLV${Math.floor(10000000 + Math.random() * 90000000)}`,
-        timeline: [
-          { title: "Order Confirmed", date: getRelativeDate(-3), time: "10:00 AM", done: true, desc: "We have received your order.", icon: CheckCircle },
-          { title: "Packed & Ready", date: getRelativeDate(-2), time: "04:30 PM", done: true, desc: "Your item has been packed safely.", icon: PackageSearch },
-          { title: "Shipped", date: getRelativeDate(-1), time: "09:15 AM", done: true, desc: "Handed over to our delivery partner.", icon: Truck },
-          { title: "In Transit", date: getRelativeDate(0), time: "11:00 AM", done: true, desc: "Package has arrived at the nearest hub.", icon: Globe },
-          { title: "Out for Delivery", date: "Pending", time: "", done: false, desc: "Delivery executive will contact you soon.", icon: MapPin },
-          { title: "Delivered", date: "Pending", time: "", done: false, desc: "Package delivered to the customer.", icon: CheckCircle },
-        ]
-      };
-      setResult(orderResult);
-      saveToRecent({ orderId: orderResult.orderId, status: orderResult.status, date: orderResult.expectedDate });
-    }, 1500);
+    }
   };
 
-  const getRelativeDate = (daysOffset) => {
-    const date = new Date();
-    date.setDate(date.getDate() + daysOffset);
-    return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+  const handleTrack = async (e) => {
+    e.preventDefault();
+    await trackOrderByNumber(orderId.trim());
   };
 
   const getStatusColor = (status) => {
@@ -84,10 +171,9 @@ const TrackOrder = () => {
     }
   };
 
-  const quickTrackOrder = (orderId) => {
-    setOrderId(orderId);
-    setEmail("customer@example.com");
-    setTimeout(() => handleTrack(new Event('submit')), 100);
+  const quickTrackOrder = (orderNumber) => {
+    setOrderId(orderNumber);
+    trackOrderByNumber(orderNumber);
   };
 
   return (
@@ -251,6 +337,10 @@ const TrackOrder = () => {
                 </button>
               </form>
 
+              {errorMsg && (
+                <p className="text-red-500 text-xs mt-4">{errorMsg}</p>
+              )}
+
               {/* Help Links */}
               <div className="mt-6 pt-6 border-t border-stone-100">
                 <p className="text-xs text-stone-500 mb-3">Need help with your order?</p>
@@ -277,24 +367,25 @@ const TrackOrder = () => {
                 </div>
                 <h3 className="font-heading text-2xl text-stone-800 mb-2">Track Your Package</h3>
                 <p className="text-stone-500 text-sm max-w-sm">
-                  Enter your Order ID and Email Address to see real-time delivery updates and timeline.
+                  Enter your Order ID to see delivery updates and timeline from your account orders.
                 </p>
                 
-                {/* Example Order IDs */}
-                <div className="mt-6 p-4 bg-stone-50 rounded-xl">
-                  <p className="text-xs text-stone-500 mb-2">Try these demo orders:</p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {['LM123456', 'LM789012', 'LM345678'].map((id) => (
-                      <button
-                        key={id}
-                        onClick={() => quickTrackOrder(id)}
-                        className="text-xs bg-white px-3 py-1.5 rounded-full border border-stone-200 hover:border-primary hover:text-primary transition"
-                      >
-                        {id}
-                      </button>
-                    ))}
+                {recentOrders.length > 0 && (
+                  <div className="mt-6 p-4 bg-stone-50 rounded-xl">
+                    <p className="text-xs text-stone-500 mb-2">Your recent orders:</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {recentOrders.slice(0, 3).map((order) => (
+                        <button
+                          key={order.orderId}
+                          onClick={() => quickTrackOrder(order.orderId)}
+                          className="text-xs bg-white px-3 py-1.5 rounded-full border border-stone-200 hover:border-primary hover:text-primary transition"
+                        >
+                          {order.orderId}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -446,13 +537,6 @@ const TrackOrder = () => {
       </div>
     </div>
   );
-};
-
-// Helper function for relative dates
-const getRelativeDate = (daysOffset) => {
-  const date = new Date();
-  date.setDate(date.getDate() + daysOffset);
-  return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
 };
 
 export default TrackOrder;

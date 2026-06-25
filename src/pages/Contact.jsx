@@ -10,12 +10,6 @@ import { getStoreInformation, getContactPage } from "@/services/contactService";
 
 const onlyDigits = (value = "") => String(value || "").replace(/\D/g, "");
 
-const defaultStoreHours = [
-  { day: "Monday - Saturday", hours: "10:00 AM - 8:00 PM" },
-  { day: "Sunday", hours: "11:00 AM - 6:00 PM" },
-  { day: "Festival Days", hours: "10:00 AM - 9:00 PM" },
-];
-
 const Contact = () => {
   const [isSent, setIsSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -116,17 +110,21 @@ const Contact = () => {
 
 
   const storeHours =
-  contactInfo.supportHours?.length > 0
-    ? contactInfo.supportHours
-        .split("\n")
-        .map((row) => {
-          const [day, hours] = row.split(":");
-          return {
-            day: day?.trim(),
-            hours: hours?.trim(),
-          };
-        })
-    : defaultStoreHours;
+    contactInfo.supportHours?.length > 0
+      ? contactInfo.supportHours
+          .split("\n")
+          .map((row) => {
+            const colonIndex = row.indexOf(":");
+            if (colonIndex === -1) {
+              return { day: row.trim(), hours: "" };
+            }
+            return {
+              day: row.slice(0, colonIndex).trim(),
+              hours: row.slice(colonIndex + 1).trim(),
+            };
+          })
+          .filter((row) => row.day)
+      : [];
 
   const quickContacts = [
     {
@@ -320,14 +318,18 @@ const Contact = () => {
               </div>
 
               <div className="space-y-2">
-                {storeHours.map((item, idx) => (
-                  <div key={idx} className="flex justify-between gap-4 text-sm">
-                    <span className="text-stone-600">{item.day}</span>
-                    {item.hours && (
-                      <span className="font-medium text-stone-800">{item.hours}</span>
-                    )}
-                  </div>
-                ))}
+                {storeHours.length > 0 ? (
+                  storeHours.map((item, idx) => (
+                    <div key={idx} className="flex justify-between gap-4 text-sm">
+                      <span className="text-stone-600">{item.day}</span>
+                      {item.hours && (
+                        <span className="font-medium text-stone-800">{item.hours}</span>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-stone-500">Hours not available</p>
+                )}
               </div>
             </div>
 

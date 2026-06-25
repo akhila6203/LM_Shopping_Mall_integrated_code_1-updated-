@@ -6,6 +6,7 @@ import {
   ArrowRight, ChevronRight, Ruler
 } from "lucide-react";
 import { useShop } from "../ShopContext.jsx";
+import { useProtectedActions } from "@/hooks/useProtectedActions";
 
 const kurtaProducts = [
   { id: 301, name: "Pastel Embroidered Kurta", price: 2999, oldPrice: 4499, category: "Straight Cut", image: "https://i.pinimg.com/736x/e3/7b/08/e37b08dbad8a6d08a7fdd68172f82101.jpg", rating: 4.8, reviews: 124, fabric: "Cotton Silk", occasion: "Casual", stockLeft: 8, colors: ["#FFF5EE", "#FFE4E1", "#E6E6FA"], sizes: ["S", "M", "L", "XL"], badge: "New Arrival", exclusive: false },
@@ -42,7 +43,8 @@ const Kurtas = () => {
   const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [showSizeGuide, setShowSizeGuide] = useState(false);
 
-  const { addToCart, toggleWishlist, wishlist, cart } = useShop();
+  const { wishlist, cart } = useShop();
+  const { handleAddToCart: addToCartProtected, handleToggleWishlist } = useProtectedActions();
 
   useEffect(() => {
     const stored = localStorage.getItem("llmshop_recently_viewed");
@@ -74,9 +76,10 @@ const Kurtas = () => {
     return 0;
   });
 
-  const handleAddToCart = (e, kurta) => {
+  const handleAddToCart = async (e, kurta) => {
     e.preventDefault(); e.stopPropagation();
-    addToCart({ ...kurta, qty: 1, size: selectedSize[kurta.id] || kurta.sizes[0] });
+    const success = await addToCartProtected({ ...kurta, qty: 1, size: selectedSize[kurta.id] || kurta.sizes[0] });
+    if (!success) return;
     setAddedToCart({ ...addedToCart, [kurta.id]: true });
     setTimeout(() => setAddedToCart({ ...addedToCart, [kurta.id]: false }), 2000);
   };
@@ -232,7 +235,7 @@ const Kurtas = () => {
                           </div>
                           <div className={`absolute inset-0 bg-black/20 transition-opacity duration-300 ${hoveredProduct === kurta.id ? 'opacity-100' : 'opacity-0'}`}>
                             <div className="absolute top-3 right-3 flex flex-col gap-2">
-                              <button onClick={(e) => { e.stopPropagation(); toggleWishlist(kurta); }} className="p-2.5 bg-white rounded-xl shadow-xl hover:bg-primary hover:text-white transition-all hover:scale-110"><Heart className={`w-4 h-4 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-stone-700'}`} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); handleToggleWishlist(kurta); }} className="p-2.5 bg-white rounded-xl shadow-xl hover:bg-primary hover:text-white transition-all hover:scale-110"><Heart className={`w-4 h-4 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-stone-700'}`} /></button>
                               <button onClick={(e) => { e.stopPropagation(); setQuickViewProduct(kurta); }} className="p-2.5 bg-white rounded-xl shadow-xl hover:bg-primary hover:text-white transition-all hover:scale-110"><Eye className="w-4 h-4 text-stone-700" /></button>
                             </div>
                             <div className="absolute bottom-4 left-4 right-4">
@@ -296,7 +299,7 @@ const Kurtas = () => {
                 <div className="flex items-center gap-2 mb-4"><div className="flex">{[...Array(5)].map((_, i) => (<Star key={i} className={`w-4 h-4 ${i < Math.floor(quickViewProduct.rating) ? 'fill-yellow-500 text-yellow-500' : 'text-stone-200'}`} />))}</div><span className="text-sm text-stone-500 font-medium">({quickViewProduct.reviews} reviews)</span></div>
                 <div className="mb-4"><p className="text-sm font-semibold text-stone-700 mb-2">Select Size</p><div className="flex gap-2">{quickViewProduct.sizes.map((s) => (<button key={s} className="w-10 h-10 rounded-full border-2 border-stone-200 hover:border-primary text-sm font-bold">{s}</button>))}</div></div>
                 <div className="flex items-center gap-3 mb-6 bg-stone-50 p-4 rounded-2xl"><span className="text-3xl font-bold text-stone-800">₹{quickViewProduct.price.toLocaleString()}</span>{quickViewProduct.oldPrice && <><span className="text-stone-400 line-through text-lg">₹{quickViewProduct.oldPrice.toLocaleString()}</span><span className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1.5 rounded-full">Save {getDiscountedPrice(quickViewProduct.price, quickViewProduct.oldPrice)}%</span></>}</div>
-                <div className="flex gap-3"><button onClick={(e) => { handleAddToCart(e, quickViewProduct); setQuickViewProduct(null); }} className="flex-1 bg-primary text-white py-4 rounded-full font-semibold hover:bg-primary/90 transition-all shadow-xl flex items-center justify-center gap-2"><ShoppingCart className="w-5 h-5" /> Add to Cart</button><button onClick={() => { toggleWishlist(quickViewProduct); }} className="p-4 border-2 border-stone-200 rounded-full hover:border-primary transition-all hover:scale-110"><Heart className={`w-5 h-5 ${wishlist.some(i => i.id === quickViewProduct.id) ? 'fill-red-500 text-red-500' : ''}`} /></button></div>
+                <div className="flex gap-3"><button onClick={(e) => { handleAddToCart(e, quickViewProduct); setQuickViewProduct(null); }} className="flex-1 bg-primary text-white py-4 rounded-full font-semibold hover:bg-primary/90 transition-all shadow-xl flex items-center justify-center gap-2"><ShoppingCart className="w-5 h-5" /> Add to Cart</button><button onClick={() => { handleToggleWishlist(quickViewProduct); }} className="p-4 border-2 border-stone-200 rounded-full hover:border-primary transition-all hover:scale-110"><Heart className={`w-5 h-5 ${wishlist.some(i => i.id === quickViewProduct.id) ? 'fill-red-500 text-red-500' : ''}`} /></button></div>
               </div>
             </div>
           </div>

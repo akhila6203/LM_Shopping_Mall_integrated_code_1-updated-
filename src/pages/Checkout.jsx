@@ -1,22 +1,47 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { 
   ChevronLeft, ShieldCheck, CheckCircle2, Banknote, CreditCard, Smartphone,
   Truck, Clock, Award, Sparkles, MapPin, Phone, Mail, User, Home, Building,
   Tag, Percent, Gift, ArrowRight, AlertCircle, Calendar, Package
 } from "lucide-react";
 import { useShop } from "../ShopContext.jsx";
+import { validateCoupon } from "@/services/couponService";
+import { checkoutOrder } from "@/services/orderService";
+import { createAddress, updateAddress, getAddresses } from "@/services/addressService";
+import { getCustomerProfile } from "@/services/customerAuthService";
+import { getImageUrl } from "@/api/axiosClient";
+
+const mapAddressToForm = (addr, customerEmail = "") => {
+  const nameParts = String(addr.full_name || "").trim().split(" ");
+  return {
+    email: customerEmail,
+    phone: addr.phone || "",
+    firstName: nameParts[0] || "",
+    lastName: nameParts.slice(1).join(" ") || "",
+    address: addr.address_line1 || "",
+    apartment: addr.address_line2 || "",
+    city: addr.city || "",
+    state: addr.state || "",
+    pincode: addr.pincode || "",
+    country: addr.country || "India",
+  };
+};
 
 const Checkout = () => {
-  const { cart, clearCart } = useShop();
+  const { cart, clearCart, fetchCart, customer } = useShop();
   const navigate = useNavigate();
-  const [isOrderPlaced, setIsOrderPlaced] = useState(false);
+  const location = useLocation();
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [saveInfo, setSaveInfo] = useState(false);
+  const [placingOrder, setPlacingOrder] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
   const [couponCode, setCouponCode] = useState("");
   const [couponApplied, setCouponApplied] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [discount, setDiscount] = useState(0);
-  const [orderNumber, setOrderNumber] = useState("");
+  const [couponMessage, setCouponMessage] = useState("");
   const [estimatedDelivery, setEstimatedDelivery] = useState("");
   const [formErrors, setFormErrors] = useState({});
   const [formData, setFormData] = useState({
@@ -50,12 +75,78 @@ const Checkout = () => {
 
   const subtotal = cart.reduce(
     (sum, item) =>
-      sum + getNumericPrice(item.price) * Number(item.qty || 1),
+      sum + getNumericPrice(item.price) * Number(item.qty || item.quantity || 1),
+    0
+  );
+  const totalQuantity = cart.reduce(
+    (sum, item) => sum + Number(item.qty || item.quantity || 1),
     0
   );
   const shipping = subtotal > 999 || subtotal === 0 ? 0 : 99;
-  const total = subtotal + shipping - discount;
-  
+  const total = Math.max(0, subtotal + shipping - discount);
+
+  useEffect(() => {
+    fetchCart();
+  }, [fetchCart]);
+
+  useEffect(() => {
+    if (cart.length === 0) return;
+
+    const checkoutState = location.state;
+    if (checkoutState?.coupon_code) {
+      setCouponCode(checkoutState.coupon_code);
+      setDiscount(Number(checkoutState.discount_amount || 0));
+      setCouponApplied(Boolean(checkoutState.coupon_code));
+      setCouponMessage(checkoutState.coupon_message || "Coupon applied successfully!");
+      setAppliedCoupon({
+        coupon_id: checkoutState.coupon_id || null,
+        coupon_code: checkoutState.coupon_code || "",
+        coupon_type: checkoutState.coupon_type || "",
+        coupon_value: checkoutState.coupon_value || 0,
+        discount_amount: Number(checkoutState.discount_amount || 0),
+      });
+    }
+  }, [location.state, cart.length]);
+
+  useEffect(() => {
+    const loadProfileAndAddresses = async () => {
+      try {
+        const profileRes = await getCustomerProfile();
+        const profile = profileRes?.data ?? profileRes;
+        let addresses = profile?.addresses || [];
+
+        if (!addresses.length) {
+          try {
+            addresses = await getAddresses();
+          } catch {
+            addresses = [];
+          }
+        }
+
+        setSavedAddresses(addresses);
+
+        const defaultAddress =
+          addresses.find((addr) => Number(addr.is_default) === 1) || addresses[0];
+
+        if (defaultAddress) {
+          setSelectedAddressId(defaultAddress.id);
+          setFormData(mapAddressToForm(defaultAddress, profile?.email || customer?.email || ""));
+        } else if (profile || customer) {
+          setFormData((prev) => ({
+            ...prev,
+            email: profile?.email || customer?.email || prev.email,
+            phone: profile?.phone || customer?.phone || prev.phone,
+            firstName: profile?.first_name || customer?.first_name || prev.firstName,
+            lastName: profile?.last_name || customer?.last_name || prev.lastName,
+          }));
+        }
+      } catch (error) {
+        console.error("Load profile/addresses error:", error);
+      }
+    };
+
+    loadProfileAndAddresses();
+  }, [customer]);
 
   // Generate estimated delivery date
   useEffect(() => {
@@ -66,14 +157,19 @@ const Checkout = () => {
     setEstimatedDelivery(deliveryDate.toLocaleDateString('en-IN', options));
   }, []);
 
-  // Load saved address if available
-  useEffect(() => {
-    const savedAddress = localStorage.getItem("savedAddress");
-    if (savedAddress) {
-      setFormData(JSON.parse(savedAddress));
-      setSaveInfo(true);
-    }
-  }, []);
+  const handleSelectAddress = (addressId) => {
+    const addr = savedAddresses.find((item) => String(item.id) === String(addressId));
+    if (!addr) return;
+    setSelectedAddressId(addr.id);
+    setFormData(mapAddressToForm(addr, formData.email || customer?.email || ""));
+  };
+
+  const resetCoupon = () => {
+    setCouponApplied(false);
+    setAppliedCoupon(null);
+    setDiscount(0);
+    setCouponMessage("");
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -106,19 +202,43 @@ const Checkout = () => {
     return errors;
   };
 
-  const applyCoupon = () => {
-    if (couponCode.toUpperCase() === "LM10") {
-      setDiscount(Math.round(subtotal * 0.1));
+  const applyCoupon = async () => {
+    try {
+      if (!couponCode.trim()) {
+        alert("Please enter coupon code");
+        return;
+      }
+
+      const result = await validateCoupon({
+        code: couponCode.trim().toUpperCase(),
+        order_amount: subtotal,
+      });
+
+      setAppliedCoupon(result);
+      setDiscount(result.discount_amount);
       setCouponApplied(true);
-    } else if (couponCode.toUpperCase() === "WELCOME20" && subtotal >= 1999) {
-      setDiscount(Math.round(subtotal * 0.2));
-      setCouponApplied(true);
-    } else {
-      alert("Invalid coupon code or minimum order value not met!");
+      setCouponMessage(result.message || "Coupon applied successfully!");
+    } catch (error) {
+      console.error("Coupon apply error:", error);
+      resetCoupon();
+      alert(error.response?.data?.message || "Invalid coupon code");
     }
   };
 
-  const handlePlaceOrder = (e) => {
+  const buildAddressPayload = () => ({
+    address_type: "shipping",
+    full_name: `${formData.firstName} ${formData.lastName}`.trim(),
+    phone: formData.phone,
+    address_line1: formData.address,
+    address_line2: formData.apartment || null,
+    city: formData.city,
+    state: formData.state,
+    pincode: formData.pincode,
+    country: formData.country || "India",
+    is_default: saveInfo ? 1 : 0,
+  });
+
+  const handlePlaceOrder = async (e) => {
     e.preventDefault();
     
     if (cart.length === 0) {
@@ -129,115 +249,71 @@ const Checkout = () => {
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
-      // Scroll to first error
       const firstError = document.querySelector('[data-error="true"]');
       if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
-    if (saveInfo) {
-      localStorage.setItem("savedAddress", JSON.stringify(formData));
+    const shippingName = `${formData.firstName} ${formData.lastName}`.trim();
+    const shippingAddress = [formData.address, formData.apartment].filter(Boolean).join(", ");
+    const taxAmount = 0;
+
+    setPlacingOrder(true);
+
+    try {
+      if (saveInfo) {
+        const addressPayload = buildAddressPayload();
+        if (selectedAddressId) {
+          await updateAddress(selectedAddressId, addressPayload);
+        } else {
+          await createAddress(addressPayload);
+        }
+        const refreshed = await getAddresses();
+        setSavedAddresses(refreshed);
+      }
+
+      const result = await checkoutOrder({
+        shipping_name: shippingName,
+        shipping_phone: formData.phone,
+        shipping_address: shippingAddress,
+        shipping_city: formData.city,
+        shipping_state: formData.state,
+        shipping_pincode: formData.pincode,
+        shipping_country: formData.country || "India",
+        billing_name: shippingName,
+        billing_phone: formData.phone,
+        billing_address: shippingAddress,
+        billing_city: formData.city,
+        billing_state: formData.state,
+        billing_pincode: formData.pincode,
+        billing_country: formData.country || "India",
+        payment_method: paymentMethod,
+        coupon_id: appliedCoupon?.coupon_id || null,
+        coupon_code: appliedCoupon?.coupon_code || (couponApplied ? couponCode.trim().toUpperCase() : null),
+        discount_amount: discount,
+        subtotal,
+        shipping_charge: shipping,
+        tax_amount: taxAmount,
+        total_amount: total,
+      });
+
+      await clearCart();
+
+      navigate("/order-success", {
+        replace: true,
+        state: {
+          order: result.order,
+          items: result.items,
+          orderId: result.order?.id,
+        },
+      });
+    } catch (error) {
+      console.error("Checkout error:", error);
+      alert(error.response?.data?.message || "Failed to place order. Please try again.");
+    } finally {
+      setPlacingOrder(false);
     }
-
-    const newOrderNumber = `LM${Math.floor(100000 + Math.random() * 900000)}`;
-    setOrderNumber(newOrderNumber);
-    
-    // Clear cart after successful order
-    setTimeout(() => {
-      clearCart();
-    }, 100);
-    
-    setIsOrderPlaced(true);
   };
-
-  // 🌟 SUCCESS SCREEN
-  if (isOrderPlaced) {
-    return (
-      <div className="w-full min-h-[85vh] bg-gradient-to-b from-stone-50 via-white to-stone-50 flex flex-col items-center justify-center py-16 px-4">
-        <div className="max-w-2xl w-full text-center">
-          {/* Success Animation */}
-          <div className="relative mb-8">
-            <div className="w-28 h-28 mx-auto bg-green-100 rounded-full flex items-center justify-center shadow-lg">
-              <CheckCircle2 className="w-14 h-14 text-green-600" />
-            </div>
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-28">
-              <div className="absolute inset-0 border-4 border-green-500 rounded-full animate-ping opacity-20"></div>
-            </div>
-          </div>
-
-          <h1 className="font-heading text-4xl md:text-5xl text-stone-800 mb-4">
-            Order Placed Successfully!
-          </h1>
-          
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Sparkles className="w-5 h-5 text-primary" />
-            <p className="text-stone-600">Thank you for your purchase</p>
-            <Sparkles className="w-5 h-5 text-primary" />
-          </div>
-
-          {/* Order Details Card */}
-          <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-6 md:p-8 mb-8">
-            <div className="grid grid-cols-2 gap-6 text-left">
-              <div>
-                <p className="text-xs text-stone-400 uppercase tracking-wider mb-1">Order Number</p>
-                <p className="font-mono text-lg font-semibold text-stone-800">#{orderNumber}</p>
-              </div>
-              <div>
-                <p className="text-xs text-stone-400 uppercase tracking-wider mb-1">Estimated Delivery</p>
-                <p className="text-sm font-medium text-stone-700 flex items-center gap-2">
-                  <Package className="w-4 h-4 text-primary" />
-                  {estimatedDelivery}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-stone-400 uppercase tracking-wider mb-1">Total Amount</p>
-                <p className="text-lg font-bold text-primary">₹{total.toLocaleString("en-IN")}</p>
-              </div>
-              <div>
-                <p className="text-xs text-stone-400 uppercase tracking-wider mb-1">Payment Method</p>
-                <p className="text-sm font-medium text-stone-700">
-                  {paymentMethod === 'cod' ? 'Cash on Delivery' : 'Online Payment'}
-                </p>
-              </div>
-            </div>
-
-            <div className="border-t border-stone-100 my-6"></div>
-
-            <div className="text-left">
-              <p className="text-xs text-stone-400 uppercase tracking-wider mb-2">Shipping To</p>
-              <p className="text-stone-700">
-                {formData.firstName} {formData.lastName}<br />
-                {formData.address} {formData.apartment}<br />
-                {formData.city}, {formData.state} - {formData.pincode}<br />
-                {formData.country}
-              </p>
-            </div>
-          </div>
-
-          <p className="font-body text-stone-500 text-sm mb-8">
-            We've sent a confirmation email to <span className="font-medium text-stone-700">{formData.email}</span> with tracking details.
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link 
-              to="/"
-              className="bg-primary text-white px-8 py-3.5 rounded-full font-body text-sm font-semibold uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 flex items-center gap-2"
-            >
-              Continue Shopping <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link 
-              to="/account"
-              className="bg-white text-stone-700 px-8 py-3.5 rounded-full font-body text-sm font-medium border border-stone-200 hover:border-primary hover:text-primary transition-all"
-            >
-              Track Order
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 🌟 REAL CHECKOUT SCREEN
   return (
     <div className="w-full min-h-screen bg-gradient-to-b from-stone-50 via-white to-stone-50 pb-20 font-body">
       
@@ -375,7 +451,27 @@ const Checkout = () => {
                   <Home className="w-4 h-4 text-primary" />
                   Shipping Address
                 </h3>
-                
+
+                {savedAddresses.length > 0 && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-stone-700 uppercase tracking-wider">
+                      Saved Addresses
+                    </label>
+                    <select
+                      value={selectedAddressId || ""}
+                      onChange={(e) => handleSelectAddress(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                    >
+                      <option value="">Enter a new address</option>
+                      {savedAddresses.map((addr) => (
+                        <option key={addr.id} value={addr.id}>
+                          {addr.full_name} - {addr.address_line1}, {addr.city}
+                          {Number(addr.is_default) === 1 ? " (Default)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-stone-700 uppercase tracking-wider">First Name</label>
@@ -623,16 +719,16 @@ const Checkout = () => {
                 {cart.length === 0 ? (
                   <p className="text-stone-500 text-sm text-center py-4">Your cart is empty.</p>
                 ) : (
-                  cart.map((item, index) => (
-                    <div key={index} className="flex gap-3 items-center">
+                  cart.map((item) => (
+                    <div key={item.cartItemId || item.cart_id} className="flex gap-3 items-center">
                       <div className="relative shrink-0">
                         <img 
-                          src={item.image} 
+                          src={item.image ? getImageUrl(item.image) : ""} 
                           alt={item.name} 
                           className="w-14 h-16 object-cover rounded-lg border border-stone-200" 
                         />
                         <span className="absolute -top-2 -right-2 bg-primary text-white w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold shadow-md">
-                          {item.qty}
+                          {item.qty || item.quantity || 1}
                         </span>
                       </div>
                       <div className="flex-1 min-w-0">
@@ -641,10 +737,9 @@ const Checkout = () => {
                           Size: {item.size || "Free Size"}
                           {item.color ? ` • Color: ${item.color}` : ""}
                         </p>
-                        {/* <p className="text-stone-500 text-xs">{item.size || 'Free Size'}</p> */}
                       </div>
                       <div className="text-sm font-semibold text-stone-800">
-                        ₹{(getNumericPrice(item.price) * item.qty).toLocaleString("en-IN")}
+                        ₹{(getNumericPrice(item.price) * Number(item.qty || item.quantity || 1)).toLocaleString("en-IN")}
                       </div>
                     </div>
                   ))
@@ -660,7 +755,10 @@ const Checkout = () => {
                   <input 
                     type="text" 
                     value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value)}
+                    onChange={(e) => {
+                      setCouponCode(e.target.value);
+                      if (couponApplied) resetCoupon();
+                    }}
                     placeholder="Enter code" 
                     className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary transition-all uppercase"
                     disabled={couponApplied}
@@ -680,18 +778,18 @@ const Checkout = () => {
                 {couponApplied && (
                   <p className="text-green-600 text-xs mt-2 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
-                    Coupon applied successfully!
+                    {couponMessage || "Coupon applied successfully!"}
                   </p>
                 )}
                 <p className="text-stone-400 text-[10px] mt-2">
-                  Try: LM10 (10% off) or WELCOME20 (20% off on orders above ₹1,999)
+                  Enter valid coupon code from admin panel
                 </p>
               </div>
 
               {/* Price Calculation */}
               <div className="space-y-2 text-sm mb-4 pb-4 border-b border-stone-100">
                 <div className="flex justify-between text-stone-600">
-                  <span>Subtotal ({cart.length} items)</span>
+                  <span>Subtotal ({totalQuantity} items)</span>
                   <span className="font-medium">₹{subtotal.toLocaleString("en-IN")}</span>
                 </div>
                 {discount > 0 && (
@@ -732,9 +830,10 @@ const Checkout = () => {
               <button 
                 form="checkout-form"
                 type="submit"
-                className="w-full bg-primary text-white py-4 rounded-xl font-body text-sm font-bold uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] flex items-center justify-center gap-2"
+                disabled={placingOrder || cart.length === 0}
+                className="w-full bg-primary text-white py-4 rounded-xl font-body text-sm font-bold uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Complete Order <ShieldCheck className="w-5 h-5" />
+                {placingOrder ? "Placing Order..." : "Complete Order"} <ShieldCheck className="w-5 h-5" />
               </button>
 
               <p className="text-[10px] text-stone-400 text-center mt-4">

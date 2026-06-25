@@ -13,7 +13,24 @@ const Wishlist = () => {
   const [addedToCart, setAddedToCart] = useState({});
 
   const handleMoveToCart = (item) => {
-    addToCart(item);
+    addToCart({
+      product_id: item.id || item.product_id,
+      variant_id: null,
+      quantity: 1,
+      selected_size: "Free Size",
+      selected_color: "",
+      item_price: Number(item.price || 0),
+      item_data: {
+        image: item.image,
+        slug: item.slug,
+        name: item.name,
+        brand: item.brand || "",
+        fabric: item.fabric || "",
+        material: item.material || "",
+        sizes: [],
+        colors: [],
+      },
+    });
     setAddedToCart({ ...addedToCart, [item.id]: true });
     setTimeout(() => {
       setAddedToCart({ ...addedToCart, [item.id]: false });
