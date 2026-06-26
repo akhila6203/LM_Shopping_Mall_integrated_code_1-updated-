@@ -79,11 +79,11 @@ const Profile = () => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = React.useRef(null);
 
-  const [settings, setSettings] = useState([
-    { label: "Email Notifications", desc: "Receive order updates and promotions", enabled: true },
-    { label: "SMS Updates", desc: "Get order updates via text message", enabled: false },
-    { label: "Two-Factor Authentication", desc: "Add an extra layer of security", enabled: false },
-  ]);
+  // const [settings, setSettings] = useState([
+  //   { label: "Email Notifications", desc: "Receive order updates and promotions", enabled: true },
+  //   { label: "SMS Updates", desc: "Get order updates via text message", enabled: false },
+  //   { label: "Two-Factor Authentication", desc: "Add an extra layer of security", enabled: false },
+  // ]);
 
   // URL parameter reading
   useEffect(() => {
@@ -153,7 +153,10 @@ const Profile = () => {
             items: `${order.items_count || 0} item(s)`,
             quantity: order.items_count || 1,
             amount: Number(order.total_amount || 0),
-            image: "",
+            image: order.image || order.product_image || order.first_item_image || order.thumbnail || "",
+            slug: order.slug || order.product_slug || "",
+            productId: order.product_id || order.first_product_id || null,
+            
           }))
         );
       } catch (error) {
@@ -341,12 +344,26 @@ const Profile = () => {
     order.items.toLowerCase().includes(orderSearch.toLowerCase())
   );
 
+  // const totalSpent = orders
+  //   .filter((order) =>
+  //     ["paid", "confirmed", "packed", "shipped", "delivered"].includes(
+  //       String(order.status || "").toLowerCase()
+  //     )
+  //   )
+  //   .reduce((sum, order) => sum + Number(order.amount || 0), 0);
+  // const ordersCompleted = orders.filter((order) =>
+  //   ["confirmed", "packed", "shipped", "delivered"].includes(
+  //     String(order.status || "").toLowerCase()
+  //   )
+  // ).length;
+  // const reviewsGiven = 0;
+
   const menuItems = [
     { id: "overview", label: "Overview", icon: User },
     { id: "orders", label: "My Orders", icon: Package, count: orders.length },
     { id: "wishlist", label: "Wishlist", icon: Heart, count: wishlist.length },
     { id: "addresses", label: "Addresses", icon: MapPin, count: savedAddresses.length },
-    { id: "settings", label: "Settings", icon: Settings },
+    // { id: "settings", label: "Settings", icon: Settings },
   ];
 
   if (!userData) {
@@ -560,24 +577,6 @@ const Profile = () => {
                     </div>
                   )}
                 </div>
-                
-                <div className="mt-5 pt-4 border-t border-stone-100">
-                  <h3 className="text-sm font-semibold text-stone-800 mb-3">Shopping Stats</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between py-2 border-b border-stone-100">
-                      <span className="text-stone-500">Total Spent</span>
-                      <span className="text-stone-800 font-bold">₹56,495</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-stone-100">
-                      <span className="text-stone-500">Orders Completed</span>
-                      <span className="text-stone-800 font-bold">{orders.filter(o => o.status === "Delivered").length}</span>
-                    </div>
-                    <div className="flex justify-between py-2">
-                      <span className="text-stone-500">Reviews Given</span>
-                      <span className="text-stone-800 font-bold">12</span>
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
 
@@ -608,7 +607,32 @@ const Profile = () => {
                     {filteredOrders.map((order) => (
                       <div key={order.id} className="border border-stone-100 rounded-lg p-3">
                         <div className="flex gap-3">
-                          <img src={order.image} alt={order.items} className="w-16 h-20 rounded-lg object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (order.slug) navigate(`/product/${order.slug}`);
+                              else if (order.productId) navigate(`/product/${order.productId}`);
+                            }}
+                            className="shrink-0"
+                          >
+                            {order.image ? (
+                              <img
+                                src={getImageUrl(order.image)}
+                                alt={order.items}
+                                className="w-16 h-20 rounded-lg object-cover border border-stone-100"
+                              />
+                            ) : (
+                              <div className="w-16 h-20 rounded-lg border border-stone-100 bg-stone-50 flex items-center justify-center text-[10px] text-stone-400">
+                                No Image
+                              </div>
+                            )}
+                          {/* <img
+                              src={order.image ? getImageUrl(order.image) : ""}
+                              alt={order.items}
+                              className="w-16 h-20 rounded-lg object-cover border border-stone-100"
+                            /> */}
+                            </button>
+                          {/* <img src={order.image} alt={order.items} className="w-16 h-20 rounded-lg object-cover" /> */}
                           <div className="flex-1">
                             <div className="flex justify-between items-start gap-2 flex-wrap">
                               <div>
@@ -729,7 +753,7 @@ const Profile = () => {
             )}
 
             {/* Settings Tab */}
-            {activeTab === "settings" && (
+            {/* {activeTab === "settings" && (
               <div>
                 <h3 className="text-sm font-semibold text-stone-800 mb-4">Account Settings</h3>
                 <div className="space-y-3">
@@ -759,7 +783,7 @@ const Profile = () => {
                   ))}
                 </div>
               </div>
-            )}
+            )} */}
 
           </div>
         </div>

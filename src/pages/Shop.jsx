@@ -16,12 +16,14 @@ import { getCategoryHierarchy } from "@/services/categoryService";
 import { getImageUrl } from "@/api/axiosClient";
 import { extractProductSizes } from "@/utils/productHelpers";
 
+
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=600&fit=crop";
 
 const Shop = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  
 
   const categoryId = searchParams.get("category_id");
   const searchText = searchParams.get("search");

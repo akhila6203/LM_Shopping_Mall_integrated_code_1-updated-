@@ -91,7 +91,9 @@ const OrderSuccess = () => {
             <div>
               <p className="text-xs text-stone-400 uppercase tracking-wider mb-1">Payment Method</p>
               <p className="text-sm font-medium text-stone-700">
-                {order.payment_method === "cod" ? "Cash on Delivery" : order.payment_method || "Online"}
+                {order.payment_method === "online" || order.payment_method === "razorpay"
+                  ? "Online Payment"
+                  : order.payment_method || "Online"}
               </p>
             </div>
             <div>

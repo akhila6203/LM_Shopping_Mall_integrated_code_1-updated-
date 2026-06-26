@@ -36,7 +36,7 @@ const Navbar = () => {
   
   // ✅ STEP 3: Remove isLoggedIn state - use user directly
 
-  const allProducts = ["Saree", "Silk Saree", "Banarasi Saree", "Kanjeevaram Saree", "Organza Saree", "Lehenga", "Kurta", "Dupatta", "Blouse", "Jewellery", "Party Wear"];
+  // const allProducts = ["Saree", "Silk Saree", "Banarasi Saree", "Kanjeevaram Saree", "Organza Saree", "Lehenga", "Kurta", "Dupatta", "Blouse", "Jewellery", "Party Wear"];
   const searchPhrases = ["What's trending for Mehendi?", "Search for Banarasi Sarees...", "Latest Bridal Lehengas...", "Designer Kurtas for Men..."];
 
 
@@ -212,30 +212,60 @@ useEffect(() => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+
   useEffect(() => {
-    if (searchTerm === "") {
-      setSuggestions([]);
-    } else {
-      const filtered = allProducts.filter(item =>
-        item.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setSuggestions(filtered);
-    }
+    const loadSuggestions = async () => {
+      const keyword = searchTerm.trim();
+
+      if (!keyword) {
+        setSuggestions([]);
+        return;
+      }
+      try {
+        const products = await getProducts({
+          status: "active",
+          search: keyword,
+          limit: 6,
+        });
+        setSuggestions(
+          (products || []).map((product) => ({
+            name: product.name,
+            path: product.slug
+              ? `/product/${product.slug}`
+              : `/shop?search=${encodeURIComponent(keyword)}`,
+          }))
+        );
+      } catch (error) {
+        console.error("Search suggestions error:", error);
+        setSuggestions([]);
+      }
+    };
+    const timer = setTimeout(loadSuggestions, 300);
+    return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const handleSearchSubmit = (term) => {
-    if (!term.trim()) return;
-    const lowerTerm = term.toLowerCase();
-    setSearchOpen(false);
-    setSearchTerm(""); 
 
-    if (lowerTerm.includes("saree")) navigate("/products/subcategory/sarees");
-    else if (lowerTerm.includes("shirt")) navigate("/products/subcategory/shirts");
-    else if (lowerTerm.includes("kurta")) navigate("/products/subcategory/kurtas");
-    else if (lowerTerm.includes("bangle")) navigate("/products/childcategory/bangles");
-    else if (lowerTerm.includes("jewel")) navigate("/products/subcategory/jewellery");
-    else navigate("/shop");
+  const handleSearchSubmit = (term) => {
+    const keyword = term.trim();
+    if (!keyword) return;
+    setSearchOpen(false);
+    setSearchTerm("");
+    setSuggestions([]);
+    navigate(`/shop?search=${encodeURIComponent(keyword)}`);
   };
+  // const handleSearchSubmit = (term) => {
+  //   if (!term.trim()) return;
+  //   const lowerTerm = term.toLowerCase();
+  //   setSearchOpen(false);
+  //   setSearchTerm(""); 
+
+  //   if (lowerTerm.includes("saree")) navigate("/products/subcategory/sarees");
+  //   else if (lowerTerm.includes("shirt")) navigate("/products/subcategory/shirts");
+  //   else if (lowerTerm.includes("kurta")) navigate("/products/subcategory/kurtas");
+  //   else if (lowerTerm.includes("bangle")) navigate("/products/childcategory/bangles");
+  //   else if (lowerTerm.includes("jewel")) navigate("/products/subcategory/jewellery");
+  //   else navigate("/shop");
+  // };
 
   const handleUserIconClick = () => {
     if (activeCustomer) {
@@ -285,7 +315,7 @@ useEffect(() => {
               </div>
               <div className="hidden md:flex items-center gap-6 text-xs">
                 <Link to="/track-order" className="flex items-center gap-1.5 hover:text-orange-100 transition-colors">Track Order</Link>
-                <Link to="/store-locator" className="flex items-center gap-1.5 hover:text-orange-100 transition-colors">Store Locator</Link>
+                <Link to="/contact" className="flex items-center gap-1.5 hover:text-orange-100 transition-colors">Store Locator</Link>
               </div>
             </div>
           </div>
@@ -484,7 +514,22 @@ useEffect(() => {
                   </button>
                 </div>
                 
-                {suggestions.length > 0 && (
+                {suggestions.map((item, index) => (
+                  <div
+                    key={index}
+                    className="px-4 py-2.5 hover:bg-orange-50 cursor-pointer transition-colors flex items-center gap-3 border-b border-gray-50 last:border-0"
+                    onClick={() => {
+                      setSearchOpen(false);
+                      setSearchTerm("");
+                      setSuggestions([]);
+                      navigate(item.path);
+                    }}
+                  >
+                    <Search className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-gray-700 text-sm font-medium">{item.name}</span>
+                  </div>
+                ))}
+                {/* {suggestions.length > 0 && (
                   <div className="bg-white mt-1 shadow-lg border border-gray-100 rounded-b-md overflow-hidden absolute max-w-2xl w-full left-0 right-0 mx-auto z-[95]">
                     {suggestions.map((item, index) => (
                       <div
@@ -497,7 +542,7 @@ useEffect(() => {
                       </div>
                     ))}
                   </div>
-                )}
+                )} */}
 
                 <div className="mt-4 flex items-center gap-3">
                   <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Trending:</p>

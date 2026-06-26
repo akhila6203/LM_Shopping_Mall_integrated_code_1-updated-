@@ -16,6 +16,7 @@ import { getCategoryHierarchy } from "@/services/categoryService";
 import { getImageUrl } from "@/api/axiosClient";
 import { getCollectionById } from "@/services/collectionService";
 import { extractProductSizes } from "@/utils/productHelpers";
+import { useSearchParams } from "react-router-dom";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&h=600&fit=crop";
@@ -23,6 +24,8 @@ const FALLBACK_IMAGE =
 const ProductListing = () => {
   const navigate = useNavigate();
   const { categoryId, subCategoryId, childCategoryId, collectionId } = useParams();
+  const [searchParams] = useSearchParams();
+const searchText = searchParams.get("search") || "";
   // const { categoryId, subCategoryId, childCategoryId } = useParams();
 
   const [products, setProducts] = useState([]);
@@ -65,6 +68,7 @@ const ProductListing = () => {
         if (categoryId) params.category_id = categoryId;
         if (subCategoryId) params.sub_category_id = subCategoryId;
         if (childCategoryId) params.child_category_id = childCategoryId;
+        if (searchText) params.search = searchText;
 
         const [productData, categoryData] = await Promise.all([
           getProducts(params),
@@ -73,8 +77,10 @@ const ProductListing = () => {
 
         setProducts(productData || []);
 
-        let title = "Products";
-        let crumbs = [];
+        let title = searchText ? `Search: ${searchText}` : "Products";
+        let crumbs = searchText
+          ? [{ name: `Search: ${searchText}`, path: `/shop?search=${encodeURIComponent(searchText)}` }]
+          : [];
 
         if (categoryId) {
           const cat = (categoryData || []).find(
@@ -139,7 +145,7 @@ const ProductListing = () => {
 
     loadListingData();
     window.scrollTo(0, 0);
-  }, [categoryId, subCategoryId, childCategoryId, collectionId]);
+  }, [categoryId, subCategoryId, childCategoryId, collectionId, searchText]);
 
   const normalizeProduct = (product) => {
     const image = product.thumbnail || product.images?.[0]?.image || "";
