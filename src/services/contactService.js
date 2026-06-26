@@ -5,8 +5,12 @@ export const getStoreInformation = async () => {
   return res.data?.data || res.data;
 };
 
+// export const getContactPage = async () => {
+//   const res = await axiosClient.get("/settings/contact-page");
+//   return res.data?.data || res.data;
+// };
 export const getContactPage = async () => {
-  const res = await axiosClient.get("/settings/contact-page");
+  const res = await axiosClient.get("/content/contact");
   return res.data?.data || res.data;
 };
 
@@ -73,14 +77,37 @@ const parseHoursValue = (value) => {
   return [];
 };
 
+
 export const extractWorkingHours = (storeData = {}, contactData = {}) => {
+  const contactContent =
+    typeof contactData?.content === "string"
+      ? (() => {
+          try {
+            return JSON.parse(contactData.content);
+          } catch {
+            return {};
+          }
+        })()
+      : contactData?.content || {};
+
+  const storeContent =
+    typeof storeData?.content === "string"
+      ? (() => {
+          try {
+            return JSON.parse(storeData.content);
+          } catch {
+            return {};
+          }
+        })()
+      : storeData?.content || {};
+
   const sources = [
+    contactContent,
     contactData,
     storeData,
     contactData?.contact?.content,
-    contactData?.content,
     storeData?.contact?.content,
-    storeData?.content,
+    storeContent,
   ];
 
   for (const source of sources) {
@@ -94,3 +121,24 @@ export const extractWorkingHours = (storeData = {}, contactData = {}) => {
 
   return [];
 };
+// export const extractWorkingHours = (storeData = {}, contactData = {}) => {
+//   const sources = [
+//     contactData,
+//     storeData,
+//     contactData?.contact?.content,
+//     contactData?.content,
+//     storeData?.contact?.content,
+//     storeData?.content,
+//   ];
+
+//   for (const source of sources) {
+//     if (!source || typeof source !== "object") continue;
+
+//     for (const key of HOUR_KEYS) {
+//       const parsed = parseHoursValue(source[key]);
+//       if (parsed.length > 0) return parsed;
+//     }
+//   }
+
+//   return [];
+// };

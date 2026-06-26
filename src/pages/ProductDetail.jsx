@@ -14,7 +14,7 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
-  Maximize2,
+  // Maximize2,
   Shield,
   Share2,
   Ruler,
@@ -812,11 +812,12 @@ const ProductDetail = () => {
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm font-medium text-stone-700">Size</p>
-                  <button className="text-xs text-primary hover:underline flex items-center gap-1">
+                </div>
+
+                {/* <button className="text-xs text-primary hover:underline flex items-center gap-1">
                     <Maximize2 className="w-3 h-3" />
                     Size Guide
-                  </button>
-                </div>
+                  </button> */}
 
                 <div className="grid grid-cols-6 gap-2">
                   {availableSizes.map((size) => (

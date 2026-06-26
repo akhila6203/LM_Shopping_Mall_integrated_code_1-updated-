@@ -31,52 +31,97 @@ const Contact = () => {
           getStoreInformation(),
           getContactPage(),
         ]);
+        const content =
+  typeof contactData?.content === "string"
+    ? JSON.parse(contactData.content || "{}")
+    : contactData?.content || {};
 
-        setContactInfo({
-          companyName: storeData?.companyName || "",
+setContactInfo({
+  companyName: content.storeName || storeData?.companyName || "",
 
-          contactEmail:
-            storeData?.contactEmail ||
-            contactData?.emailAddress ||
-            "",
+  contactEmail:
+    content.email ||
+    storeData?.contactEmail ||
+    "",
 
-          phoneNumber:
-            storeData?.phoneNumber ||
-            storeData?.contactPhone ||
-            storeData?.mobileNumber ||
-            storeData?.mobile ||
-            storeData?.whatsappNumber ||
-            contactData?.phoneNumber ||
-            "",
+  phoneNumber:
+    content.mobile ||
+    content.alternateMobile ||
+    storeData?.phoneNumber ||
+    storeData?.whatsappNumber ||
+    "",
 
-          whatsappNumber:
-            storeData?.whatsappNumber ||
-            storeData?.phoneNumber ||
-            storeData?.mobileNumber ||
-            contactData?.phoneNumber ||
-            "",
+  whatsappNumber:
+    content.whatsappNumber ||
+    storeData?.whatsappNumber ||
+    content.mobile ||
+    "",
 
-          storeAddress:
-            storeData?.storeAddress ||
-            storeData?.address ||
-            contactData?.address ||
-            "",
+  storeAddress:
+    content.address ||
+    storeData?.storeAddress ||
+    "",
 
-          city: storeData?.city || "",
-          state: storeData?.state || "",
-          country: storeData?.country || "",
-          postalCode: storeData?.postalCode || "",
+  city: storeData?.city || "",
+  state: storeData?.state || "",
+  country: storeData?.country || "",
+  postalCode: storeData?.postalCode || "",
 
-          websiteUrl: storeData?.websiteUrl || "",
-          facebookUrl: storeData?.facebookUrl || "",
-          instagramUrl: storeData?.instagramUrl || "",
-          twitterUrl: storeData?.twitterUrl || "",
-          youtubeUrl: storeData?.youtubeUrl || "",
-          linkedinUrl: storeData?.linkedinUrl || "",
+  websiteUrl: storeData?.websiteUrl || "",
+  facebookUrl: storeData?.facebookUrl || "",
+  instagramUrl: storeData?.instagramUrl || "",
+  twitterUrl: storeData?.twitterUrl || "",
+  youtubeUrl: storeData?.youtubeUrl || "",
+  linkedinUrl: storeData?.linkedinUrl || "",
 
-          googleMapsEmbedUrl: contactData?.googleMapsEmbedUrl || "",
-          storeHours: extractWorkingHours(storeData, contactData),
-        });
+  googleMapsEmbedUrl: content.googleMapsUrl || content.googleMapsEmbedUrl || "",
+  storeHours: extractWorkingHours(storeData, contactData),
+});
+        // setContactInfo({
+        //   companyName: storeData?.companyName || "",
+
+        //   contactEmail:
+        //     storeData?.contactEmail ||
+        //     contactData?.emailAddress ||
+        //     "",
+
+        //   phoneNumber:
+        //     storeData?.phoneNumber ||
+        //     storeData?.contactPhone ||
+        //     storeData?.mobileNumber ||
+        //     storeData?.mobile ||
+        //     storeData?.whatsappNumber ||
+        //     contactData?.phoneNumber ||
+        //     "",
+
+        //   whatsappNumber:
+        //     storeData?.whatsappNumber ||
+        //     storeData?.phoneNumber ||
+        //     storeData?.mobileNumber ||
+        //     contactData?.phoneNumber ||
+        //     "",
+
+        //   storeAddress:
+        //     storeData?.storeAddress ||
+        //     storeData?.address ||
+        //     contactData?.address ||
+        //     "",
+
+        //   city: storeData?.city || "",
+        //   state: storeData?.state || "",
+        //   country: storeData?.country || "",
+        //   postalCode: storeData?.postalCode || "",
+
+        //   websiteUrl: storeData?.websiteUrl || "",
+        //   facebookUrl: storeData?.facebookUrl || "",
+        //   instagramUrl: storeData?.instagramUrl || "",
+        //   twitterUrl: storeData?.twitterUrl || "",
+        //   youtubeUrl: storeData?.youtubeUrl || "",
+        //   linkedinUrl: storeData?.linkedinUrl || "",
+
+        //   googleMapsEmbedUrl: contactData?.googleMapsEmbedUrl || "",
+        //   storeHours: extractWorkingHours(storeData, contactData),
+        // });
       } catch (error) {
         console.error("Contact data fetch error:", error);
         setContactInfo({});
