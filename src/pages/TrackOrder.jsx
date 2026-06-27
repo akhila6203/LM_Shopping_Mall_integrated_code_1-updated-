@@ -134,8 +134,9 @@ const TrackOrder = () => {
               day: "numeric",
             })
           : "",
-        courier: fullOrder.courier_name || "Standard Delivery",
-        trackingNumber: fullOrder.tracking_number || fullOrder.order_number,
+        courier: fullOrder.courier_name || fullOrder.shipping_method || "Standard Delivery",
+        trackingNumber: fullOrder.awb_code || fullOrder.tracking_number || fullOrder.order_number,
+        trackingUrl: fullOrder.tracking_url || null,
         timeline: buildTimelineFromOrder(fullOrder),
       });
     } catch (error) {
@@ -155,7 +156,8 @@ const TrackOrder = () => {
     switch(status) {
       case "Delivered": return "bg-green-500";
       case "In Transit": return "bg-blue-500";
-      case "Out for Delivery": return "bg-orange-500";
+      case "Out for Delivery":
+      case "Out For Delivery": return "bg-orange-500";
       case "Shipped": return "bg-purple-500";
       default: return "bg-stone-500";
     }
@@ -165,7 +167,8 @@ const TrackOrder = () => {
     switch(status) {
       case "Delivered": return CheckCircle;
       case "In Transit": return Truck;
-      case "Out for Delivery": return MapPin;
+      case "Out for Delivery":
+      case "Out For Delivery": return MapPin;
       case "Shipped": return PackageSearch;
       default: return Clock;
     }
@@ -440,6 +443,9 @@ const TrackOrder = () => {
                       <div>
                         <p className="text-xs text-stone-500">Shipping Partner</p>
                         <p className="text-sm font-medium text-stone-800">{result.courier}</p>
+                        <p className="text-xs text-stone-500 mt-0.5">
+                          AWB / Tracking: {result.trackingNumber}
+                        </p>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -519,6 +525,16 @@ const TrackOrder = () => {
 
                 {/* Action Buttons */}
                 <div className="px-6 py-4 bg-stone-50 border-t border-stone-100 flex flex-wrap gap-3">
+                  {result.trackingUrl && (
+                    <a
+                      href={result.trackingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 bg-white border border-stone-200 text-stone-700 py-3 rounded-xl text-sm font-medium hover:border-primary hover:text-primary transition flex items-center justify-center gap-2"
+                    >
+                      <Truck className="w-4 h-4" /> Track on Courier
+                    </a>
+                  )}
                   <Link 
                     to="/shop" 
                     className="flex-1 bg-primary text-white py-3 rounded-xl text-sm font-medium hover:bg-primary/90 transition flex items-center justify-center gap-2"
