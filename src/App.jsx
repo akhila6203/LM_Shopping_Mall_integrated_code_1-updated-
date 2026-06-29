@@ -33,6 +33,7 @@ import SignIn from "./pages/SignIn.jsx";
 import Cart from "./pages/Cart.jsx";
 import Wishlist from "./pages/Wishlist.jsx";
 import Register from "./pages/Register.jsx";
+import ForgotPassword from "./pages/ForgotPassword.jsx";
 import TrackOrder from "./pages/TrackOrder.jsx";
 import Faq from "./pages/Faq.jsx";
 import Checkout from "./pages/Checkout.jsx";
@@ -90,6 +91,7 @@ const App = () => {
               <Route path="/signin" element={<SignIn />} />
               <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
               <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/faq" element={<Faq />} />
 
               <Route path="/shipping-policy" element={<ShippingPolicy />} />

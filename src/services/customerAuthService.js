@@ -1,5 +1,15 @@
 import axiosClient from "@/api/axiosClient";
 
+export const sendOtp = async (data) => {
+  const res = await axiosClient.post("/storefront/auth/send-otp", data);
+  return res.data;
+};
+
+export const verifyOtp = async (data) => {
+  const res = await axiosClient.post("/storefront/auth/verify-otp", data);
+  return res.data;
+};
+
 export const registerCustomer = async (data) => {
   const res = await axiosClient.post("/storefront/auth/register", data);
   return res.data;
@@ -7,6 +17,16 @@ export const registerCustomer = async (data) => {
 
 export const loginCustomer = async (data) => {
   const res = await axiosClient.post("/storefront/auth/login", data);
+  return res.data;
+};
+
+export const forgotPassword = async (data) => {
+  const res = await axiosClient.post("/storefront/auth/forgot-password", data);
+  return res.data;
+};
+
+export const resetPassword = async (data) => {
+  const res = await axiosClient.post("/storefront/auth/reset-password", data);
   return res.data;
 };
 

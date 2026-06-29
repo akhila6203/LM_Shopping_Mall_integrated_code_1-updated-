@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { 
   ArrowRight, ArrowLeft, Mail, Lock, Eye, EyeOff, Sparkles, 
-  Shield, Truck, Award, Clock, CheckCircle, AlertCircle,
-  Fingerprint, Smartphone, Globe, Key, Timer, RefreshCw,
-  Gift, Percent, MessageCircle
+  Percent, Truck, Gift, CheckCircle, AlertCircle,
+  Smartphone
 } from "lucide-react";
 import { useShop } from "../ShopContext.jsx";
 import { getBanners } from "@/services/bannerService";
@@ -31,16 +30,12 @@ const SignIn = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isEmail, setIsEmail] = useState(false);
   const [isPhone, setIsPhone] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [timer, setTimer] = useState(0);
   const [heroSlides, setHeroSlides] = useState([]);
-  const otpRefs = useRef([]);
 
   const benefits = [
     { icon: Percent, text: "10% OFF first order" },
@@ -99,13 +94,6 @@ const SignIn = () => {
     }
   }, [location.state?.registrationSuccess, location.pathname, navigate]);
 
-  useEffect(() => {
-    if (timer > 0) {
-      const countdown = setInterval(() => setTimer(prev => prev - 1), 1000);
-      return () => clearInterval(countdown);
-    }
-  }, [timer]);
-
   const handleInputChange = (value) => {
     setInputValue(value);
     setErrorMsg("");
@@ -117,44 +105,13 @@ const SignIn = () => {
     if (emailRegex.test(value)) {
       setIsEmail(true);
       setIsPhone(false);
-      setOtpSent(false);
-    } else if (phoneRegex.test(value)) {
+    } else if (phoneRegex.test(value.replace(/\D/g, "").slice(-10))) {
       setIsPhone(true);
       setIsEmail(false);
     } else {
       setIsEmail(false);
       setIsPhone(false);
-      setOtpSent(false);
     }
-  };
-
-  const handleOtpChange = (index, value) => {
-    if (value.length > 1) return;
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-    if (value && index < 5) otpRefs.current[index + 1]?.focus();
-  };
-
-  const handleOtpKeyDown = (index, e) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) otpRefs.current[index - 1]?.focus();
-  };
-
-  const handleOtpPaste = (e) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    const newOtp = [...otp];
-    pastedData.split("").forEach((char, idx) => { if (idx < 6) newOtp[idx] = char; });
-    setOtp(newOtp);
-    if (pastedData.length === 6) otpRefs.current[5]?.focus();
-  };
-
-  const resendOtp = () => {
-    setOtp(["", "", "", "", "", ""]);
-    setTimer(30);
-    setSuccessMsg("OTP resent successfully!");
-    setTimeout(() => setSuccessMsg(""), 3000);
-    otpRefs.current[0]?.focus();
   };
 
   const getReturnPath = () => {
@@ -197,32 +154,25 @@ const SignIn = () => {
     setIsLoading(true);
 
     try {
-      if (isPhone) {
-        if (!otpSent) {
-          setOtpSent(true);
-          setTimer(30);
-          setSuccessMsg("OTP sent to your phone number!");
-          setTimeout(() => setSuccessMsg(""), 3000);
-          setTimeout(() => otpRefs.current[0]?.focus(), 100);
-        } else {
-          const otpString = otp.join("");
-          if (otpString.length === 6) {
-            setErrorMsg("Phone login is not available. Please sign in with your email.");
-          } else {
-            setErrorMsg("Please enter complete 6-digit OTP");
-          }
-        }
-      } else if (isEmail) {
-        if (password.length >= 6) {
-          if (rememberMe) localStorage.setItem("rememberedEmail", inputValue);
-          else localStorage.removeItem("rememberedEmail");
-
-          await login(inputValue.trim(), password);
-          setSuccessMsg("Login Successful! Redirecting...");
-          await handlePostLogin();
-        } else {
+      if (isEmail || isPhone) {
+        if (password.length < 6) {
           setErrorMsg("Password must be at least 6 characters");
+          return;
         }
+
+        const loginIdentifier = isPhone
+          ? inputValue.replace(/\D/g, "").slice(-10)
+          : inputValue.trim();
+
+        if (rememberMe && isEmail) {
+          localStorage.setItem("rememberedEmail", inputValue);
+        } else {
+          localStorage.removeItem("rememberedEmail");
+        }
+
+        await login(loginIdentifier, password);
+        setSuccessMsg("Login Successful! Redirecting...");
+        await handlePostLogin();
       } else {
         setErrorMsg("Enter a valid email or 10-digit phone number starting with 6-9");
       }
@@ -346,10 +296,10 @@ const SignIn = () => {
                 />
                 {(isEmail || isPhone) && <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />}
               </div>
-              {isPhone && <p className="text-[9px] sm:text-[10px] text-stone-400 mt-0.5 sm:mt-1">We'll send you a 6-digit OTP</p>}
+              {isPhone && <p className="text-[9px] sm:text-[10px] text-stone-400 mt-0.5 sm:mt-1">Sign in with your registered phone and password</p>}
             </div>
 
-            {isEmail && (
+            {(isEmail || isPhone) && (
               <div className="space-y-1 sm:space-y-1.5">
                 <div className="flex justify-between items-end">
                   <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
@@ -369,7 +319,7 @@ const SignIn = () => {
                       'border-stone-200 focus:border-primary focus:ring-2 focus:ring-primary/20'
                     }`} 
                     placeholder="••••••••" 
-                    required={isEmail} 
+                    required 
                   />
                   <button 
                     type="button" 
@@ -378,44 +328,6 @@ const SignIn = () => {
                   >
                     {showPassword ? <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                   </button>
-                </div>
-              </div>
-            )}
-
-            {isPhone && otpSent && (
-              <div className="space-y-1.5 sm:space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
-                    <Key className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />Enter OTP
-                  </label>
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    {timer > 0 ? (
-                      <span className="text-[10px] sm:text-xs text-stone-500 flex items-center gap-1">
-                        <Timer className="w-3 h-3 sm:w-3.5 sm:h-3.5" />{timer}s
-                      </span>
-                    ) : (
-                      <button type="button" onClick={resendOtp} className="text-[10px] sm:text-xs text-primary hover:underline flex items-center gap-1 font-medium">
-                        <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Resend OTP
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="flex gap-2 sm:gap-3" onPaste={handleOtpPaste}>
-                  {otp.map((digit, idx) => (
-                    <input 
-                      key={idx} 
-                      ref={el => otpRefs.current[idx] = el} 
-                      type="text" 
-                      inputMode="numeric" 
-                      pattern="[0-9]" 
-                      value={digit} 
-                      onChange={(e) => handleOtpChange(idx, e.target.value)} 
-                      onKeyDown={(e) => handleOtpKeyDown(idx, e)} 
-                      maxLength={1} 
-                      className="w-full aspect-square text-center text-base sm:text-lg font-bold bg-stone-50 border-2 border-stone-200 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" 
-                      autoComplete="one-time-code" 
-                    />
-                  ))}
                 </div>
               </div>
             )}
@@ -460,20 +372,10 @@ const SignIn = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  {isPhone && !otpSent ? "Sending OTP..." : "Verifying..."}
+                  Signing in...
                 </>
               ) : (
-                <>
-                  {isPhone ? (
-                    otpSent ? (
-                      <>Verify OTP <Fingerprint className="w-4 h-4 sm:w-5 sm:h-5" /></>
-                    ) : (
-                      <>Send OTP <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" /></>
-                    )
-                  ) : (
-                    <>Sign In <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" /></>
-                  )}
-                </>
+                <>Sign In <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" /></>
               )}
             </button>
           </form>

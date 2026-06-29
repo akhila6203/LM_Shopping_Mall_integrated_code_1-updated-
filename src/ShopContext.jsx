@@ -251,8 +251,17 @@ export const ShopProvider = ({ children }) => {
     initAuth();
   }, [fetchCart, fetchWishlist, refreshProfile]);
 
-  const login = async (email, password) => {
-    const response = await loginCustomer({ email, password });
+  const login = async (identifier, password) => {
+    const trimmed = identifier.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneDigits = trimmed.replace(/\D/g, "").slice(-10);
+    const isEmailLogin = emailRegex.test(trimmed);
+
+    const payload = isEmailLogin
+      ? { email: trimmed.toLowerCase(), password }
+      : { phone: phoneDigits, password };
+
+    const response = await loginCustomer(payload);
     const { customer: authCustomer, token: authToken, refreshToken } =
       parseAuthPayload(response);
 

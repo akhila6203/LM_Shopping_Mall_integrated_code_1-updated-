@@ -13,6 +13,8 @@ import {
   Percent,
   Truck,
   Gift,
+  Smartphone,
+  CheckCircle,
 } from "lucide-react";
 import { useShop } from "../ShopContext.jsx";
 import { getBanners } from "@/services/bannerService";
@@ -47,7 +49,10 @@ const LoginModal = () => {
   } = useShop();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("");
+  const [inputValue, setInputValue] = useState("");
+const [isEmail, setIsEmail] = useState(false);
+const [isPhone, setIsPhone] = useState(false);
+  // const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -59,7 +64,10 @@ const LoginModal = () => {
 
   useEffect(() => {
     if (!isOpen) {
-      setEmail("");
+      setInputValue("");
+setIsEmail(false);
+setIsPhone(false);
+      // setEmail("");
       setPassword("");
       setErrorMsg("");
       setShowPassword(false);
@@ -139,29 +147,70 @@ const LoginModal = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setErrorMsg("");
-    setIsLoading(true);
 
-    try {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-        setErrorMsg("Please enter a valid email address");
-        return;
-      }
-      if (password.length < 6) {
-        setErrorMsg("Password must be at least 6 characters");
-        return;
-      }
+  const handleInputChange = (value) => {
+      setInputValue(value);
+      setErrorMsg("");
 
-      await login(email.trim(), password);
-      await handlePostLogin();
-    } catch (error) {
-      setErrorMsg(error.response?.data?.message || error.message || "Login failed. Please try again.");
-    } finally {
-      setIsLoading(false);
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const phoneDigits = value.replace(/\D/g, "").slice(-10);
+      const phoneRegex = /^[6-9]\d{9}$/;
+
+      setIsEmail(emailRegex.test(value.trim()));
+      setIsPhone(phoneRegex.test(phoneDigits));
+    };
+
+    const handleSubmit = async (e) => {
+  e.preventDefault();
+  setErrorMsg("");
+  setIsLoading(true);
+
+  try {
+    if (!isEmail && !isPhone) {
+      setErrorMsg("Enter a valid email or 10-digit phone number starting with 6-9");
+      return;
     }
-  };
+
+    if (password.length < 6) {
+      setErrorMsg("Password must be at least 6 characters");
+      return;
+    }
+
+    const loginIdentifier = isPhone
+      ? inputValue.replace(/\D/g, "").slice(-10)
+      : inputValue.trim();
+
+    await login(loginIdentifier, password);
+    await handlePostLogin();
+  } catch (error) {
+    setErrorMsg(error.response?.data?.message || error.message || "Login failed. Please try again.");
+  } finally {
+    setIsLoading(false);
+  }
+};
+  // const handleSubmit = async (e) => {
+  //   e.preventDefault();
+  //   setErrorMsg("");
+  //   setIsLoading(true);
+
+  //   try {
+  //     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+  //       setErrorMsg("Please enter a valid email address");
+  //       return;
+  //     }
+  //     if (password.length < 6) {
+  //       setErrorMsg("Password must be at least 6 characters");
+  //       return;
+  //     }
+
+  //     await login(email.trim(), password);
+  //     await handlePostLogin();
+  //   } catch (error) {
+  //     setErrorMsg(error.response?.data?.message || error.message || "Login failed. Please try again.");
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   const handleDismiss = () => {
     sessionStorage.setItem("login_popup_dismissed", "1");
@@ -276,6 +325,42 @@ const LoginModal = () => {
 
             <form onSubmit={handleSubmit} className="space-y-3">
               <div>
+  <label className="block text-xs font-medium text-stone-700 mb-1">
+    {isPhone ? "Phone Number" : "Email or Phone"}
+  </label>
+  <div className="relative">
+    {isPhone ? (
+      <Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+    ) : (
+      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+    )}
+
+    <input
+      type="text"
+      value={inputValue}
+      onChange={(e) => handleInputChange(e.target.value)}
+      className={`w-full pl-11 pr-10 py-3 bg-stone-50 border rounded-xl text-sm focus:outline-none focus:ring-2 ${
+        isEmail || isPhone
+          ? "border-green-300 focus:border-green-500 focus:ring-green-100"
+          : "border-stone-200 focus:border-primary focus:ring-primary/20"
+      }`}
+      placeholder="Enter email or phone number"
+      required
+      autoFocus
+    />
+
+    {(isEmail || isPhone) && (
+      <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+    )}
+  </div>
+
+  {isPhone && (
+    <p className="text-[10px] text-stone-400 mt-1">
+      Sign in with your registered phone and password
+    </p>
+  )}
+</div>
+              {/* <div>
                 <label className="block text-xs font-medium text-stone-700 mb-1">Email</label>
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
@@ -292,7 +377,7 @@ const LoginModal = () => {
                     autoFocus
                   />
                 </div>
-              </div>
+              </div> */}
 
               <div>
                 <label className="block text-xs font-medium text-stone-700 mb-1">Password</label>
@@ -318,6 +403,17 @@ const LoginModal = () => {
                   </button>
                 </div>
               </div>
+
+              <div className="flex justify-end mt-2">
+  <Link
+    to="/forgot-password"
+    // onClick={closeModal}
+    onClick={closeLoginModal}
+    className="text-sm text-primary hover:underline"
+  >
+    Forgot Password?
+  </Link>
+</div>
 
               <button
                 type="submit"

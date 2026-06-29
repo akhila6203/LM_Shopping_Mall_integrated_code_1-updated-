@@ -1,12 +1,25 @@
-﻿import React, { useState, useEffect } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { 
-  ArrowRight, ArrowLeft, Mail, Lock, Eye, EyeOff, User, Sparkles,
-  CheckCircle, AlertCircle, Phone
+﻿import React, { useState, useEffect, useRef } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  ArrowRight,
+  ArrowLeft,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  User,
+  Sparkles,
+  CheckCircle,
+  AlertCircle,
+  Phone,
+  Key,
+  Timer,
+  RefreshCw,
 } from "lucide-react";
 import { useShop } from "../ShopContext.jsx";
 import { getBanners } from "@/services/bannerService";
 import { getImageUrl } from "@/api/axiosClient";
+import { sendOtp, verifyOtp } from "@/services/customerAuthService";
 
 const isActiveBanner = (status) =>
   status === "active" || status === 1 || status === true;
@@ -26,8 +39,13 @@ const Register = () => {
     email: "",
     phone: "",
     password: "",
-    confirmPassword: ""
+    confirmPassword: "",
   });
+
+  const [step, setStep] = useState("form");
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [timer, setTimer] = useState(0);
+  const otpRefs = useRef([]);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -40,8 +58,7 @@ const Register = () => {
   const [heroSlides, setHeroSlides] = useState([]);
 
   const navigate = useNavigate();
-  const location = useLocation();
-  const { register } = useShop();
+  const { register, openLoginModal } = useShop();
 
   useEffect(() => {
     const loadBanners = async () => {
@@ -70,6 +87,13 @@ const Register = () => {
     return () => clearInterval(interval);
   }, [heroSlides.length]);
 
+  useEffect(() => {
+    if (timer > 0) {
+      const countdown = setInterval(() => setTimer((prev) => prev - 1), 1000);
+      return () => clearInterval(countdown);
+    }
+  }, [timer]);
+
   const checkPasswordStrength = (pwd) => {
     let strength = 0;
     if (pwd.length >= 8) strength++;
@@ -88,63 +112,160 @@ const Register = () => {
     setSuccessMsg("");
   };
 
-  const handleRegister = async (e) => {
+  const validateForm = () => {
+    if (formData.first_name.trim().length < 2) {
+      setErrorMsg("First name must be at least 2 characters long.");
+      return false;
+    }
+    if (formData.last_name.trim().length < 1) {
+      setErrorMsg("Last name is required.");
+      return false;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setErrorMsg("Please enter a valid email address.");
+      return false;
+    }
+    if (!formData.phone.trim()) {
+      setErrorMsg("Phone number is required.");
+      return false;
+    }
+    const phoneDigits = formData.phone.replace(/\D/g, "").slice(-10);
+    if (!/^[6-9]\d{9}$/.test(phoneDigits)) {
+      setErrorMsg("Please enter a valid 10-digit Indian mobile number.");
+      return false;
+    }
+    if (formData.password.length < 6) {
+      setErrorMsg("Password must be at least 6 characters long.");
+      return false;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setErrorMsg("Passwords do not match.");
+      return false;
+    }
+    if (!agreeToTerms) {
+      setErrorMsg("Please agree to the Terms & Conditions.");
+      return false;
+    }
+    return true;
+  };
+
+  const handleOtpChange = (index, value) => {
+    if (value.length > 1) return;
+    const newOtp = [...otp];
+    newOtp[index] = value.replace(/\D/g, "");
+    setOtp(newOtp);
+    if (value && index < 5) otpRefs.current[index + 1]?.focus();
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    const newOtp = [...otp];
+    pastedData.split("").forEach((char, idx) => {
+      if (idx < 6) newOtp[idx] = char;
+    });
+    setOtp(newOtp);
+    if (pastedData.length === 6) otpRefs.current[5]?.focus();
+  };
+
+  const handleSendOtp = async () => {
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    const phoneDigits = formData.phone.replace(/\D/g, "").slice(-10);
+
+    try {
+      await sendOtp({
+        phone: phoneDigits,
+        email: formData.email.trim(),
+        purpose: "register",
+      });
+      setStep("otp");
+      setOtp(["", "", "", "", "", ""]);
+      setTimer(60);
+      setSuccessMsg("OTP sent to your WhatsApp!");
+      setTimeout(() => otpRefs.current[0]?.focus(), 100);
+    } catch (error) {
+      setErrorMsg(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to send OTP. Please try again."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setIsLoading(true);
+    setErrorMsg("");
+    const phoneDigits = formData.phone.replace(/\D/g, "").slice(-10);
+
+    try {
+      await sendOtp({
+        phone: phoneDigits,
+        email: formData.email.trim(),
+        purpose: "register",
+      });
+      setOtp(["", "", "", "", "", ""]);
+      setTimer(60);
+      setSuccessMsg("OTP resent to your WhatsApp!");
+      otpRefs.current[0]?.focus();
+    } catch (error) {
+      setErrorMsg(error.response?.data?.message || error.message || "Failed to resend OTP.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyAndRegister = async (e) => {
     e.preventDefault();
     setErrorMsg("");
     setSuccessMsg("");
 
-    if (formData.first_name.trim().length < 2) {
-      setErrorMsg("First name must be at least 2 characters long.");
+    const otpString = otp.join("");
+    if (otpString.length !== 6) {
+      setErrorMsg("Please enter the complete 6-digit OTP.");
       return;
     }
-
-    if (formData.last_name.trim().length < 1) {
-      setErrorMsg("Last name is required.");
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      setErrorMsg("Please enter a valid email address.");
-      return;
-    }
-
-    if (!formData.phone.trim()) {
-      setErrorMsg("Phone number is required.");
-      return;
-    }
-
-    if (formData.phone.trim().length < 10) {
-      setErrorMsg("Please enter a valid 10-digit phone number.");
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setErrorMsg("Password must be at least 6 characters long.");
-      return;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      setErrorMsg("Passwords do not match.");
-      return;
-    }
-
-    if (!agreeToTerms) {
-      setErrorMsg("Please agree to the Terms & Conditions.");
-      return;
-    }
-
-    const payload = {
-      first_name: formData.first_name.trim(),
-      last_name: formData.last_name.trim(),
-      email: formData.email.trim(),
-      phone: formData.phone.trim(),
-      password: formData.password,
-    };
 
     setIsLoading(true);
+    const phoneDigits = formData.phone.replace(/\D/g, "").slice(-10);
 
     try {
+      const verifyResponse = await verifyOtp({
+        phone: phoneDigits,
+        otp: otpString,
+        purpose: "register",
+      });
+
+      const token =
+        verifyResponse?.data?.verification_token ||
+        verifyResponse?.verification_token;
+
+      if (!token) {
+        throw new Error("OTP verification failed. Please try again.");
+      }
+
+      const payload = {
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim(),
+        email: formData.email.trim(),
+        phone: phoneDigits,
+        password: formData.password,
+        verification_token: token,
+      };
+
       await register(payload);
       navigate("/account", {
         replace: true,
@@ -158,6 +279,15 @@ const Register = () => {
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    if (step === "form") {
+      await handleSendOtp();
+    } else {
+      await handleVerifyAndRegister(e);
     }
   };
 
@@ -232,19 +362,19 @@ const Register = () => {
         </div>
 
         {heroSlides.length > 0 && (
-        <div className="absolute bottom-4 sm:bottom-6 lg:bottom-8 left-1/2 -translate-x-1/2 z-30 flex gap-1.5 sm:gap-2">
-          {heroSlides.map((_, idx) => (
-            <button
-              key={idx}
-              onClick={() => setCurrentSlide(idx)}
-              className={`h-1 sm:h-1.5 rounded-full transition-all ${
-                currentSlide === idx
-                  ? "w-6 sm:w-8 bg-primary"
-                  : "w-3 sm:w-4 bg-white/50 hover:bg-white/70"
-              }`}
-            />
-          ))}
-        </div>
+          <div className="absolute bottom-4 sm:bottom-6 lg:bottom-8 left-1/2 -translate-x-1/2 z-30 flex gap-1.5 sm:gap-2">
+            {heroSlides.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentSlide(idx)}
+                className={`h-1 sm:h-1.5 rounded-full transition-all ${
+                  currentSlide === idx
+                    ? "w-6 sm:w-8 bg-primary"
+                    : "w-3 sm:w-4 bg-white/50 hover:bg-white/70"
+                }`}
+              />
+            ))}
+          </div>
         )}
       </div>
 
@@ -269,217 +399,264 @@ const Register = () => {
         <div className="max-w-md w-full mx-auto">
           <div className="mb-4 sm:mb-5">
             <h1 className="font-heading text-3xl sm:text-4xl text-stone-800 mb-1.5 sm:mb-2">
-              Register
+              {step === "form" ? "Register" : "Verify Phone"}
             </h1>
             <p className="font-body text-stone-500 text-xs sm:text-sm">
-              Become a part of our exclusive fashion club.
+              {step === "form"
+                ? "Become a part of our exclusive fashion club."
+                : `Enter the 6-digit OTP sent to +91 ${formData.phone.replace(/\D/g, "").slice(-10)} on WhatsApp.`}
             </p>
           </div>
 
           <form onSubmit={handleRegister} className="space-y-3.5 sm:space-y-4">
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              <div className="space-y-1 sm:space-y-1.5">
-                <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
-                  <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />
-                  First Name
-                </label>
-                <input
-                  type="text"
-                  name="first_name"
-                  value={formData.first_name}
-                  onChange={handleChange}
-                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 font-body text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                  placeholder="First name"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1 sm:space-y-1.5">
-                <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
-                  <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />
-                  Last Name
-                </label>
-                <input
-                  type="text"
-                  name="last_name"
-                  value={formData.last_name}
-                  onChange={handleChange}
-                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 font-body text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                  placeholder="Last name"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1 sm:space-y-1.5">
-              <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
-                <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />
-                Email Address
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full bg-white border border-stone-200 rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 font-body text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                placeholder="Enter your email"
-                required
-              />
-            </div>
-
-            <div className="space-y-1 sm:space-y-1.5">
-              <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
-                <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />
-                Phone Number
-                <span className="text-stone-400 text-[10px] sm:text-xs font-normal">
-                  (Optional)
-                </span>
-              </label>
-              <div className="flex gap-1.5 sm:gap-2">
-                <select className="w-20 sm:w-24 bg-white border border-stone-200 rounded-xl px-2 sm:px-3 py-3 sm:py-3.5 font-body text-xs sm:text-sm focus:outline-none focus:border-primary transition-all">
-                  <option value="+91">+91</option>
-                  <option value="+1">+1</option>
-                  <option value="+44">+44</option>
-                </select>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className="flex-1 bg-white border border-stone-200 rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 font-body text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                  placeholder="Phone number"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1 sm:space-y-1.5">
-              <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
-                <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />
-                Create Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 pr-11 sm:pr-12 font-body text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                  placeholder="password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 p-1 sm:p-1.5 text-stone-400 hover:text-stone-600 transition-colors rounded-full hover:bg-stone-100"
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  ) : (
-                    <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  )}
-                </button>
-              </div>
-
-              {formData.password && (
-                <div className="mt-1.5 sm:mt-2">
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="flex-1 h-1 sm:h-1.5 bg-stone-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all duration-300 ${getStrengthColor()}`}
-                        style={{ width: `${(passwordStrength / 5) * 100}%` }}
-                      ></div>
-                    </div>
-                    <span className="text-[10px] sm:text-xs text-stone-500">
-                      {getStrengthText()}
-                    </span>
+            {step === "form" ? (
+              <>
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                  <div className="space-y-1 sm:space-y-1.5">
+                    <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
+                      <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />
+                      First Name
+                    </label>
+                    <input
+                      type="text"
+                      name="first_name"
+                      value={formData.first_name}
+                      onChange={handleChange}
+                      className="w-full bg-white border border-stone-200 rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 font-body text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      placeholder="First name"
+                      required
+                    />
                   </div>
-                  <p className="text-[9px] sm:text-[10px] text-stone-400 mt-0.5 sm:mt-1">
-                    Use 8+ characters with letters, numbers & symbols
-                  </p>
-                </div>
-              )}
-            </div>
 
-            <div className="space-y-1 sm:space-y-1.5">
-              <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
-                <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />
-                Confirm Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className={`w-full bg-white border rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 pr-11 sm:pr-12 font-body text-sm focus:outline-none transition-all ${
-                    formData.confirmPassword &&
-                    formData.password !== formData.confirmPassword
-                      ? "border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100"
-                      : "border-stone-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  }`}
-                  placeholder="confirm password"
-                  required
-                />
+                  <div className="space-y-1 sm:space-y-1.5">
+                    <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
+                      <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />
+                      Last Name
+                    </label>
+                    <input
+                      type="text"
+                      name="last_name"
+                      value={formData.last_name}
+                      onChange={handleChange}
+                      className="w-full bg-white border border-stone-200 rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 font-body text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      placeholder="Last name"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1 sm:space-y-1.5">
+                  <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
+                    <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className="w-full bg-white border border-stone-200 rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 font-body text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                    placeholder="Enter your email"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1 sm:space-y-1.5">
+                  <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
+                    <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />
+                    Phone Number
+                  </label>
+                  <div className="flex gap-1.5 sm:gap-2">
+                    <select className="w-20 sm:w-24 bg-white border border-stone-200 rounded-xl px-2 sm:px-3 py-3 sm:py-3.5 font-body text-xs sm:text-sm focus:outline-none focus:border-primary transition-all">
+                      <option value="+91">+91</option>
+                    </select>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className="flex-1 bg-white border border-stone-200 rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 font-body text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      placeholder="10-digit mobile number"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1 sm:space-y-1.5">
+                  <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
+                    <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />
+                    Create Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      className="w-full bg-white border border-stone-200 rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 pr-11 sm:pr-12 font-body text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      placeholder="password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 p-1 sm:p-1.5 text-stone-400 hover:text-stone-600 transition-colors rounded-full hover:bg-stone-100"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      )}
+                    </button>
+                  </div>
+
+                  {formData.password && (
+                    <div className="mt-1.5 sm:mt-2">
+                      <div className="flex items-center gap-1.5 sm:gap-2">
+                        <div className="flex-1 h-1 sm:h-1.5 bg-stone-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-300 ${getStrengthColor()}`}
+                            style={{ width: `${(passwordStrength / 5) * 100}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-[10px] sm:text-xs text-stone-500">
+                          {getStrengthText()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1 sm:space-y-1.5">
+                  <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
+                    <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      className={`w-full bg-white border rounded-xl px-3.5 sm:px-4 py-3 sm:py-3.5 pr-11 sm:pr-12 font-body text-sm focus:outline-none transition-all ${
+                        formData.confirmPassword &&
+                        formData.password !== formData.confirmPassword
+                          ? "border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100"
+                          : "border-stone-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      }`}
+                      placeholder="confirm password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 p-1 sm:p-1.5 text-stone-400 hover:text-stone-600 transition-colors rounded-full hover:bg-stone-100"
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-1 sm:pt-2">
+                  <label className="flex items-start gap-1.5 sm:gap-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={agreeToTerms}
+                      onChange={(e) => setAgreeToTerms(e.target.checked)}
+                      className="w-3.5 h-3.5 sm:w-4 sm:h-4 mt-0.5 rounded border-stone-300 text-primary focus:ring-primary/20 cursor-pointer"
+                    />
+                    <span className="text-[10px] sm:text-xs text-stone-600 group-hover:text-stone-800 transition-colors">
+                      I agree to the{" "}
+                      <Link to="/terms-conditions" className="text-primary hover:underline">
+                        Terms & Conditions
+                      </Link>{" "}
+                      and{" "}
+                      <Link to="/privacy-policy" className="text-primary hover:underline">
+                        Privacy Policy
+                      </Link>
+                      .
+                    </span>
+                  </label>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-1.5 sm:space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-body text-xs sm:text-sm font-medium text-stone-700 flex items-center gap-1.5 sm:gap-2">
+                      <Key className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-stone-400" />
+                      Enter WhatsApp OTP
+                    </label>
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      {timer > 0 ? (
+                        <span className="text-[10px] sm:text-xs text-stone-500 flex items-center gap-1">
+                          <Timer className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                          {timer}s
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleResendOtp}
+                          disabled={isLoading}
+                          className="text-[10px] sm:text-xs text-primary hover:underline flex items-center gap-1 font-medium"
+                        >
+                          <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                          Resend OTP
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 sm:gap-3" onPaste={handleOtpPaste}>
+                    {otp.map((digit, idx) => (
+                      <input
+                        key={idx}
+                        ref={(el) => {
+                          otpRefs.current[idx] = el;
+                        }}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]"
+                        value={digit}
+                        onChange={(e) => handleOtpChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                        maxLength={1}
+                        className="w-full aspect-square text-center text-base sm:text-lg font-bold bg-stone-50 border-2 border-stone-200 rounded-xl focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                        autoComplete="one-time-code"
+                      />
+                    ))}
+                  </div>
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 p-1 sm:p-1.5 text-stone-400 hover:text-stone-600 transition-colors rounded-full hover:bg-stone-100"
+                  onClick={() => {
+                    setStep("form");
+                    setOtp(["", "", "", "", "", ""]);
+                    setErrorMsg("");
+                    setSuccessMsg("");
+                  }}
+                  className="text-xs text-stone-500 hover:text-primary transition-colors"
                 >
-                  {showConfirmPassword ? (
-                    <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  ) : (
-                    <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  )}
+                  ← Edit registration details
                 </button>
-              </div>
-
-              {formData.confirmPassword &&
-                formData.password !== formData.confirmPassword && (
-                  <p className="text-red-500 text-[10px] sm:text-xs mt-0.5 sm:mt-1 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    Passwords do not match
-                  </p>
-                )}
-            </div>
-
-            <div className="pt-1 sm:pt-2">
-              <label className="flex items-start gap-1.5 sm:gap-2 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={agreeToTerms}
-                  onChange={(e) => setAgreeToTerms(e.target.checked)}
-                  className="w-3.5 h-3.5 sm:w-4 sm:h-4 mt-0.5 rounded border-stone-300 text-primary focus:ring-primary/20 cursor-pointer"
-                />
-                <span className="text-[10px] sm:text-xs text-stone-600 group-hover:text-stone-800 transition-colors">
-                  I agree to the{" "}
-                  <Link to="/terms" className="text-primary hover:underline">
-                    Terms & Conditions
-                  </Link>{" "}
-                  and{" "}
-                  <Link to="/privacy" className="text-primary hover:underline">
-                    Privacy Policy
-                  </Link>
-                  .
-                </span>
-              </label>
-            </div>
+              </>
+            )}
 
             {errorMsg && (
               <div className="flex items-center gap-1.5 sm:gap-2 bg-red-50 border border-red-200 rounded-xl p-2.5 sm:p-3">
                 <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500 flex-shrink-0" />
-                <p className="text-red-600 font-body text-[10px] sm:text-xs">
-                  {errorMsg}
-                </p>
+                <p className="text-red-600 font-body text-[10px] sm:text-xs">{errorMsg}</p>
               </div>
             )}
 
             {successMsg && (
               <div className="flex items-center gap-1.5 sm:gap-2 bg-green-50 border border-green-200 rounded-xl p-2.5 sm:p-3">
                 <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500 flex-shrink-0" />
-                <p className="text-green-600 font-body text-[10px] sm:text-xs">
-                  {successMsg}
-                </p>
+                <p className="text-green-600 font-body text-[10px] sm:text-xs">{successMsg}</p>
               </div>
             )}
 
@@ -510,11 +687,15 @@ const Register = () => {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
-                  Creating Account...
+                  {step === "form" ? "Sending OTP..." : "Creating Account..."}
+                </>
+              ) : step === "form" ? (
+                <>
+                  Create Account <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                 </>
               ) : (
                 <>
-                  Create Account <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                  Verify & Register <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                 </>
               )}
             </button>
@@ -523,27 +704,20 @@ const Register = () => {
           <div className="mt-6 sm:mt-8 text-center">
             <p className="font-body text-xs sm:text-sm text-stone-500">
               Already a member?
-              <Link
+              <button
+  type="button"
+  onClick={() => openLoginModal()}
+  className="text-primary font-medium hover:text-primary/80 transition-colors ml-1.5 sm:ml-2 border-b-2 border-primary/30 hover:border-primary pb-0.5"
+>
+  Sign In
+</button>
+              {/* <Link
                 to="/account"
                 className="text-primary font-medium hover:text-primary/80 transition-colors ml-1.5 sm:ml-2 border-b-2 border-primary/30 hover:border-primary pb-0.5"
               >
                 Sign In
-              </Link>
+              </Link> */}
             </p>
-          </div>
-
-          <div className="mt-5 sm:mt-6 flex items-center justify-center gap-3 sm:gap-4 text-[10px] sm:text-xs text-stone-400">
-            <Link to="/privacy" className="hover:text-primary transition-colors">
-              Privacy
-            </Link>
-            <span className="w-1 h-1 bg-stone-300 rounded-full"></span>
-            <Link to="/terms" className="hover:text-primary transition-colors">
-              Terms
-            </Link>
-            <span className="w-1 h-1 bg-stone-300 rounded-full"></span>
-            <Link to="/help" className="hover:text-primary transition-colors">
-              Help
-            </Link>
           </div>
         </div>
       </div>
