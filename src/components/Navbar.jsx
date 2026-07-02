@@ -637,7 +637,17 @@ useEffect(() => {
                   </>
                 ) : (
                   <>
-                    <Link to="/account" className="block py-2 text-gray-600" onClick={() => setMobileOpen(false)}>Sign In / Register</Link>
+                  <button
+  type="button"
+  className="block py-2 text-gray-600 w-full text-left"
+  onClick={() => {
+    setMobileOpen(false);
+    openLoginModal({ from: { pathname: window.location.pathname } });
+  }}
+>
+  Sign In / Register
+</button>
+                    {/* <Link to="/account" className="block py-2 text-gray-600" onClick={() => setMobileOpen(false)}>Sign In / Register</Link> */}
                     <Link to="/profile?tab=wishlist" className="block py-2 text-gray-600" onClick={() => setMobileOpen(false)}>Wishlist</Link>
                   </>
                 )}

@@ -613,6 +613,27 @@ const ProductDetail = () => {
     </Link>
   );
 
+
+  const handleShareProduct = async () => {
+    const shareData = {
+      title: product.name,
+      text: `Check out this product: ${product.name}`,
+      url: window.location.href,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        setShowToast("Product link copied to clipboard!");
+        setTimeout(() => setShowToast(null), 2000);
+      }
+    } catch (err) {
+      console.log("Share cancelled", err);
+    }
+  };
+
+
   return (
     <div className="w-full min-h-screen bg-stone-50">
       {showToast && (
@@ -908,10 +929,17 @@ const ProductDetail = () => {
             </div>
 
             <div className="mt-6 pt-4 border-t border-stone-200">
-              <button className="flex items-center gap-2 text-sm text-stone-500 hover:text-primary transition">
+              <button
+                  onClick={handleShareProduct}
+                  className="flex items-center gap-2 text-sm text-stone-500 hover:text-primary transition"
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share this product
+                </button>
+              {/* <button className="flex items-center gap-2 text-sm text-stone-500 hover:text-primary transition">
                 <Share2 className="w-4 h-4" />
                 Share this product
-              </button>
+              </button> */}
             </div>
           </div>
         </div>

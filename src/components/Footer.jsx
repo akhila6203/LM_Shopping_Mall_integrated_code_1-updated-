@@ -22,8 +22,8 @@ const infoLinks = [
 
 const supportLinks = [
   { label: "Contact Us", path: "/contact" },
-  { label: "FAQs", path: "/faq" },
-  { label: "Size Guide", path: "/faq" },
+  // { label: "FAQs", path: "/faq" },
+  // { label: "Size Guide", path: "/faq" },
   { label: "Track Order", path: "/track-order" },
 ];
 

@@ -351,9 +351,9 @@ const TrackOrder = () => {
                   <Link to="/contact" className="text-xs text-primary hover:underline flex items-center gap-1">
                     <Phone className="w-3 h-3" /> Contact Support
                   </Link>
-                  <Link to="/faq" className="text-xs text-primary hover:underline flex items-center gap-1">
+                  {/* <Link to="/faq" className="text-xs text-primary hover:underline flex items-center gap-1">
                     <HelpCircle className="w-3 h-3" /> FAQ
-                  </Link>
+                  </Link> */}
                 </div>
               </div>
             </div>
@@ -448,14 +448,14 @@ const TrackOrder = () => {
                         </p>
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    {/* <div className="flex gap-2">
                       <button className="p-2 hover:bg-white rounded-lg transition" title="Share Tracking">
                         <Share2 className="w-4 h-4 text-stone-400" />
                       </button>
                       <button className="p-2 hover:bg-white rounded-lg transition" title="Download Details">
                         <Download className="w-4 h-4 text-stone-400" />
                       </button>
-                    </div>
+                    </div> */}
                   </div>
                 </div>
 
@@ -541,9 +541,9 @@ const TrackOrder = () => {
                   >
                     <ShoppingBag className="w-4 h-4" /> Continue Shopping
                   </Link>
-                  <button className="px-6 py-3 bg-white border border-stone-200 rounded-xl text-sm font-medium text-stone-700 hover:border-primary hover:text-primary transition flex items-center gap-2">
+                  {/* <button className="px-6 py-3 bg-white border border-stone-200 rounded-xl text-sm font-medium text-stone-700 hover:border-primary hover:text-primary transition flex items-center gap-2">
                     <HelpCircle className="w-4 h-4" /> Need Help?
-                  </button>
+                  </button> */}
                 </div>
 
               </div>

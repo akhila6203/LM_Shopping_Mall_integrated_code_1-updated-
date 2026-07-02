@@ -267,10 +267,16 @@ const Register = () => {
       };
 
       await register(payload);
-      navigate("/account", {
-        replace: true,
-        state: { registrationSuccess: "Registration successful. Please login." },
-      });
+      setSuccessMsg("Registration successful. Please login.");
+      navigate("/", { replace: true });
+      setTimeout(() => {
+        openLoginModal();
+      }, 100);
+      // await register(payload);
+      // navigate("/account", {
+      //   replace: true,
+      //   state: { registrationSuccess: "Registration successful. Please login." },
+      // });
     } catch (error) {
       setErrorMsg(
         error.response?.data?.message ||
