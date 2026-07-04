@@ -220,13 +220,15 @@ setIsPhone(false);
   if (!isOpen || authLoading) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 animate-in fade-in duration-300 overflow-y-auto">
+     {/* <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-in fade-in duration-300"> */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={handleDismiss}
       />
 
-      <div className="relative bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+      <div className="relative bg-white w-full max-w-4xl rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 max-h-[96dvh] md:max-h-none">
+      {/* <div className="relative bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300"> */}
         <button
           onClick={handleDismiss}
           className="absolute top-4 right-4 z-20 bg-white/90 hover:bg-white p-2.5 rounded-full shadow-lg transition-all"
@@ -235,12 +237,15 @@ setIsPhone(false);
           <X className="w-5 h-5 text-stone-700" />
         </button>
 
-        <div className="grid md:grid-cols-2">
-          <div className="relative h-[280px] md:h-[520px] overflow-hidden bg-stone-900">
+        <div className="grid grid-cols-1 md:grid-cols-2 max-h-[96dvh] md:max-h-none overflow-y-auto md:overflow-visible">
+        {/* <div className="grid md:grid-cols-2"> */}
+          <div className="relative h-[170px] md:h-[520px] overflow-hidden bg-stone-900">
+          {/* <div className="relative h-[280px] md:h-[520px] overflow-hidden bg-stone-900"> */}
             {heroSlides.map((slide, idx) => (
               <div
                 key={slide.id ?? idx}
                 className={`absolute inset-0 transition-opacity duration-1000 ${
+                // className={`absolute inset-0 transition-opacity duration-1000 ${
                   activeSlide === idx ? "opacity-100 z-10" : "opacity-0 z-0"
                 }`}
               >
@@ -254,7 +259,8 @@ setIsPhone(false);
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-                <div className="absolute inset-0 flex flex-col justify-end p-8 text-white">
+                  <div className="absolute inset-0 flex flex-col justify-end p-4 md:p-8 text-white">
+                {/* <div className="absolute inset-0 flex flex-col justify-end p-8 text-white"> */}
                   <div
                     className={`transition-all duration-500 ${
                       activeSlide === idx ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
@@ -266,15 +272,18 @@ setIsPhone(false);
                       {slide.badge}
                     </span>
                     )}
-                    <h2 className="font-heading text-3xl font-bold mb-2">{slide.title}</h2>
-                    <p className="text-sm text-white/80">{slide.subtitle}</p>
+                    <h2 className="font-heading text-xl md:text-3xl font-bold mb-1 md:mb-2">{slide.title}</h2>
+                    {/* <h2 className="font-heading text-3xl font-bold mb-2">{slide.title}</h2> */}
+                    {/* <p className="text-sm text-white/80">{slide.subtitle}</p> */}
+                    <p className="text-xs md:text-sm text-white/80 line-clamp-2">{slide.subtitle}</p>
                   </div>
                 </div>
               </div>
             ))}
 
             {heroSlides.length > 0 && (
-            <div className="absolute bottom-6 left-8 z-20 flex gap-1.5">
+              <div className="absolute bottom-4 left-4 md:bottom-6 md:left-8 z-20 flex gap-1.5">
+             {/* <div className="absolute bottom-6 left-8 z-20 flex gap-1.5"> */}
               {heroSlides.map((_, idx) => (
                 <button
                   key={idx}
@@ -288,14 +297,17 @@ setIsPhone(false);
             </div>
             )}
 
-            <div className="absolute top-6 left-6 z-20">
+            {/* <div className="absolute top-6 left-6 z-20"> */}
+              <div className="absolute top-4 left-4 md:top-6 md:left-6 z-20">
+            {/* <div className="absolute top-6 left-6 z-20"> */}
               <span className="font-heading text-2xl font-bold text-white tracking-wider">
                 LM <span className="text-primary italic">Showroom</span>
               </span>
             </div>
           </div>
 
-          <div className="p-8 md:p-10 flex flex-col justify-center bg-gradient-to-br from-white via-stone-50 to-white">
+          {/* <div className="p-8 md:p-10 flex flex-col justify-center bg-gradient-to-br from-white via-stone-50 to-white"> */}
+            <div className="p-4 md:p-10 flex flex-col justify-center bg-gradient-to-br from-white via-stone-50 to-white">
             <div className="mb-5">
               <div className="flex items-center gap-2 mb-2">
                 <Sparkles className="w-5 h-5 text-primary" />
@@ -323,7 +335,8 @@ setIsPhone(false);
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-3">
+              <form onSubmit={handleSubmit} className="space-y-2.5 md:space-y-3">
+            {/* <form onSubmit={handleSubmit} className="space-y-3"> */}
               <div>
   <label className="block text-xs font-medium text-stone-700 mb-1">
     {isPhone ? "Phone Number" : "Email or Phone"}
