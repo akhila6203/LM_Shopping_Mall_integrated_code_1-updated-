@@ -42,20 +42,27 @@ const FeaturedBanner = () => {
     navigate(categoryPath);
   };
 
-  const handleShopNowClick = (e, banner) => {
-    e.stopPropagation();
 
-    navigate("/cart", {
-      state: {
-        newItem: {
-          id: banner.id,
-          name: banner.title,
-          price: banner.price,
-          image: banner.image,
-        },
-      },
-    });
-  };
+  const handleShopNowClick = (e, banner) => {
+  e.stopPropagation();
+
+  navigate(banner.path || "/shop");
+};
+  
+  // const handleShopNowClick = (e, banner) => {
+  //   e.stopPropagation();
+
+  //   navigate("/cart", {
+  //     state: {
+  //       newItem: {
+  //         id: banner.id,
+  //         name: banner.title,
+  //         price: banner.price,
+  //         image: banner.image,
+  //       },
+  //     },
+  //   });
+  // };
 
   if (!banners.length) return null;
 

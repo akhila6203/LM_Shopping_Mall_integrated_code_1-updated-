@@ -33,7 +33,7 @@ const SignIn = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  // const [rememberMe, setRememberMe] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [heroSlides, setHeroSlides] = useState([]);
 
@@ -70,19 +70,20 @@ const SignIn = () => {
     return () => clearInterval(interval);
   }, [heroSlides.length]);
 
-  useEffect(() => {
-    const savedEmail = localStorage.getItem("rememberedEmail");
-    if (savedEmail) {
-      setInputValue(savedEmail);
-      handleInputChange(savedEmail);
-      setRememberMe(true);
-    }
-  }, []);
+  // useEffect(() => {
+  //   const savedEmail = localStorage.getItem("rememberedEmail");
+  //   if (savedEmail) {
+  //     setInputValue(savedEmail);
+  //     handleInputChange(savedEmail);
+  //     setRememberMe(true);
+  //   }
+  // }, []);
 
   useEffect(() => {
     if (authLoading) return;
-    const token = sessionStorage.getItem("customer_token");
-    if (token || customer) {
+    // const token = sessionStorage.getItem("customer_token");
+    // if (token || customer) {
+    if (customer) {
       navigate("/", { replace: true });
     }
   }, [authLoading, customer, navigate]);
@@ -164,11 +165,11 @@ const SignIn = () => {
           ? inputValue.replace(/\D/g, "").slice(-10)
           : inputValue.trim();
 
-        if (rememberMe && isEmail) {
-          localStorage.setItem("rememberedEmail", inputValue);
-        } else {
-          localStorage.removeItem("rememberedEmail");
-        }
+        // if (rememberMe && isEmail) {
+        //   localStorage.setItem("rememberedEmail", inputValue);
+        // } else {
+        //   localStorage.removeItem("rememberedEmail");
+        // }
 
         await login(loginIdentifier, password);
         setSuccessMsg("Login Successful! Redirecting...");

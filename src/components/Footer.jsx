@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Instagram, Facebook, Youtube, Twitter } from "lucide-react";
-import { Link } from "react-router-dom";
+// import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getStoreInformation } from "@/services/contactService";
+import { useShop } from "@/ShopContext";
 
 const onlyDigits = (value = "") => String(value || "").replace(/\D/g, "");
 
@@ -36,6 +38,9 @@ const Footer = () => {
     youtubeUrl: "",
     twitterUrl: "",
   });
+  const { user, openLoginModal } = useShop();
+  
+  const navigate = useNavigate();
 
   useEffect(() => {
     const loadFooterData = async () => {
@@ -96,14 +101,70 @@ const Footer = () => {
               My Account
             </h4>
             <ul className="space-y-2 text-sm">
-              {accountLinks.map((item) => (
+  <li>
+    <button
+      type="button"
+      onClick={() => {
+        if (user) navigate("/profile");
+        else openLoginModal({ from: { pathname: "/profile" } });
+      }}
+      className="hover:text-primary transition-colors text-left"
+    >
+      Sign In
+    </button>
+  </li>
+
+  <li>
+    <button
+      type="button"
+      onClick={() => {
+        if (user) navigate("/profile");
+        else navigate("/register");
+      }}
+      className="hover:text-primary transition-colors text-left"
+    >
+      Register
+    </button>
+  </li>
+
+  <li>
+    <button
+      type="button"
+      onClick={() => {
+        if (user) navigate("/profile?tab=orders");
+        else openLoginModal({ from: { pathname: "/profile", search: "?tab=orders" } });
+      }}
+      className="hover:text-primary transition-colors text-left"
+    >
+      My Orders
+    </button>
+  </li>
+
+  <li>
+    <button
+      type="button"
+      onClick={() => {
+        if (user) navigate("/profile?tab=wishlist");
+        else openLoginModal({ from: { pathname: "/profile", search: "?tab=wishlist" } });
+      }}
+      className="hover:text-primary transition-colors text-left"
+    >
+      Wishlist
+    </button>
+  </li>
+</ul>
+
+{/* <Link to="/wishlist" className="hover:text-primary transition-colors">
+    Wishlist
+  </Link> */}
+              {/* {accountLinks.map((item) => (
                 <li key={item.label}>
                   <Link to={item.path} className="hover:text-primary transition-colors">
                     {item.label}
                   </Link>
                 </li>
-              ))}
-            </ul>
+              ))} */}
+            
           </div>
 
           <div>

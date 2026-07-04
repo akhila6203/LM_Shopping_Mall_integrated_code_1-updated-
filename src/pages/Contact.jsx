@@ -403,7 +403,7 @@ setContactInfo({
                 >
                   Send Message
                 </button>
-                <button
+                {/* <button
                   type="button"
                   onClick={() => setActiveTab("callback")}
                   className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
@@ -413,10 +413,13 @@ setContactInfo({
                   }`}
                 >
                   Request Callback
-                </button>
+                </button> */}
               </div>
 
-              <form className="space-y-5" onSubmit={handleSendMessage}>
+              <form  action="https://formsubmit.co/kummariakhila025@gmail.com"
+                   method="POST" className="space-y-5" 
+              // onSubmit={handleSendMessage}
+              >
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">
                     Subject
@@ -485,16 +488,12 @@ setContactInfo({
 
                 <div>
                   <label className="block text-xs font-medium text-stone-700 mb-1.5 uppercase tracking-wider">
-                    {activeTab === "callback" ? "Best Time to Call" : "Your Message"}
+                    Your Message
                   </label>
                   <textarea
                     name="message"
                     rows="5"
-                    placeholder={
-                      activeTab === "callback"
-                        ? "Let us know when to call you..."
-                        : "How can we help you?"
-                    }
+                    placeholder="How can we help you?"
                     value={formData.message}
                     onChange={handleInputChange}
                     required

@@ -296,11 +296,17 @@ const Cart = () => {
                                 ₹{itemTotal.toLocaleString("en-IN")}
                               </p>
 
-                              {item.oldPrice && (
+                                {getNumericPrice(item.oldPrice) > 0 && (
+                                    <p className="text-xs text-stone-400 line-through">
+                                      ₹{(getNumericPrice(item.oldPrice) * qty).toLocaleString("en-IN")}
+                                    </p>
+                                  )}
+                                  
+                              {/* {item.oldPrice && (
                                 <p className="text-xs text-stone-400 line-through">
                                   ₹{(getNumericPrice(item.oldPrice) * qty).toLocaleString("en-IN")}
                                 </p>
-                              )}
+                              )} */}
 
                               <p className="text-[11px] text-stone-400 mt-1">
                                 ₹{cleanPrice.toLocaleString("en-IN")} × {qty}
@@ -379,7 +385,7 @@ const Cart = () => {
                 Order Summary
               </h2>
 
-              <div className="mb-4 pb-4 border-b border-stone-100">
+              {/* <div className="mb-4 pb-4 boitem.stockrder-b border-stone-100">
                 <label className="text-xs font-semibold text-stone-700 uppercase tracking-wider mb-2 block">
                   Coupon Code
                 </label>
@@ -419,7 +425,7 @@ const Cart = () => {
                     Enter valid coupon code from admin panel
                   </p>
                 )}
-              </div>
+              </div> */}
 
               <div className="space-y-3 text-sm mb-4 pb-4 border-b border-stone-100">
                 <div className="flex justify-between text-stone-600">

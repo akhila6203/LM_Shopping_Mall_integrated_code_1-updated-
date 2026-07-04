@@ -2,6 +2,7 @@ import axios from "axios";
 
 const axiosClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api",
+  withCredentials: true,
 });
 
 axiosClient.interceptors.request.use((config) => {
@@ -15,10 +16,10 @@ axiosClient.interceptors.request.use((config) => {
 
   config.headers["X-Cart-Session-Id"] = sessionId;
 
-  const token = sessionStorage.getItem("customer_token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  // const token = sessionStorage.getItem("customer_token");
+  // if (token) {
+  //   config.headers.Authorization = `Bearer ${token}`;
+  // }
 
   return config;
 });

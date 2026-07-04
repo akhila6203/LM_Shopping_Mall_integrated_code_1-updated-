@@ -71,7 +71,8 @@ const normalizeCartItem = (item) => {
     slug: item.slug || itemData.slug || "",
     name: item.name || itemData.name || "",
     qty: Number(item.qty || item.quantity || 1),
-    size: item.size || item.selected_size || sizes[0] || "Free Size",
+    size: item.selected_size || item.size || sizes[0] || "Free Size",
+    // size: item.size || item.selected_size || sizes[0] || "Free Size",
     color: item.color || item.selected_color || "",
     image: itemData.image
       ? getImageUrl(itemData.image)
@@ -142,15 +143,15 @@ const normalizeCustomer = (customer) => {
   };
 };
 
-const persistAuthTokens = (token, refreshToken) => {
-  if (token) sessionStorage.setItem("customer_token", token);
-  if (refreshToken) sessionStorage.setItem("customer_refresh_token", refreshToken);
-};
+// const persistAuthTokens = (token, refreshToken) => {
+//   if (token) sessionStorage.setItem("customer_token", token);
+//   if (refreshToken) sessionStorage.setItem("customer_refresh_token", refreshToken);
+// };
 
-const clearAuthTokens = () => {
-  sessionStorage.removeItem("customer_token");
-  sessionStorage.removeItem("customer_refresh_token");
-};
+// const clearAuthTokens = () => {
+//   sessionStorage.removeItem("customer_token");
+//   sessionStorage.removeItem("customer_refresh_token");
+// };
 
 export const ShopProvider = ({ children }) => {
   const [customer, setCustomer] = useState(null);
@@ -162,7 +163,8 @@ export const ShopProvider = ({ children }) => {
   const [cartLoading, setCartLoading] = useState(false);
 
   const openLoginModal = useCallback(({ from, pendingAction } = {}) => {
-    if (sessionStorage.getItem("customer_token") && customer) return;
+    if (customer) return;
+    // if (sessionStorage.getItem("customer_token") && customer) return;
     setLoginModal({
       open: true,
       from: from || null,
@@ -188,68 +190,119 @@ export const ShopProvider = ({ children }) => {
   }, []);
 
   const fetchWishlist = useCallback(async () => {
-    try {
-      const token = sessionStorage.getItem("customer_token");
-      if (!token) {
-        setWishlist([]);
-        return;
-      }
-      const data = await getWishlistItems();
-      setWishlist((data || []).map(normalizeWishlistItem));
-    } catch (error) {
-      console.error("Fetch wishlist error:", error);
+  try {
+    if (!customer) {
       setWishlist([]);
+      return;
     }
-  }, []);
+
+    const data = await getWishlistItems();
+    setWishlist((data || []).map(normalizeWishlistItem));
+  } catch (error) {
+    console.error("Fetch wishlist error:", error);
+    setWishlist([]);
+  }
+}, [customer]);
+  // const fetchWishlist = useCallback(async () => {
+  //   try {
+  //     if (!customer) {
+  //       setWishlist([]);
+  //       return;
+  //     }
+  //     // const token = sessionStorage.getItem("customer_token");
+  //     // if (!token) {
+  //     //   setWishlist([]);
+  //     //   return;
+  //     // }
+  //     const data = await getWishlistItems();
+  //     setWishlist((data || []).map(normalizeWishlistItem));
+  //   } catch (error) {
+  //     console.error("Fetch wishlist error:", error);
+  //     setWishlist([]);
+  //   }
+  // }, []);
 
   const refreshProfile = useCallback(async () => {
-    const savedToken = sessionStorage.getItem("customer_token");
-    if (!savedToken) {
-      setCustomer(null);
-      setToken(null);
-      return null;
-    }
+  const profileResponse = await getCustomerProfile();
+  const profileCustomer = normalizeCustomer(parseProfilePayload(profileResponse));
 
-    setToken(savedToken);
-    const profileResponse = await getCustomerProfile();
-    const profileCustomer = normalizeCustomer(parseProfilePayload(profileResponse));
-    if (!profileCustomer) {
-      throw new Error("Unable to load customer profile");
-    }
-    setCustomer(profileCustomer);
-    return profileCustomer;
-  }, []);
+  if (!profileCustomer) {
+    setCustomer(null);
+    setToken(null);
+    return null;
+  }
+
+  setCustomer(profileCustomer);
+  return profileCustomer;
+}, []);
+  // const refreshProfile = useCallback(async () => {
+  //   const savedToken = sessionStorage.getItem("customer_token");
+  //   if (!savedToken) {
+  //     setCustomer(null);
+  //     setToken(null);
+  //     return null;
+  //   }
+
+  //   setToken(savedToken);
+  //   const profileResponse = await getCustomerProfile();
+  //   const profileCustomer = normalizeCustomer(parseProfilePayload(profileResponse));
+  //   if (!profileCustomer) {
+  //     throw new Error("Unable to load customer profile");
+  //   }
+  //   setCustomer(profileCustomer);
+  //   return profileCustomer;
+  // }, []);
 
   useEffect(() => {
-    const initAuth = async () => {
-      const savedToken = sessionStorage.getItem("customer_token");
-      if (!savedToken) {
-        setCart([]);
-        setWishlist([]);
-        setAuthLoading(false);
-        return;
-      }
+  const initAuth = async () => {
+    try {
+      await refreshProfile();
+      await fetchCart();
+      await fetchWishlist();
+      // await refreshProfile();
+      // await fetchCart();
+    } catch (error) {
+      setCustomer(null);
+      setToken(null);
+      setCart([]);
+      setWishlist([]);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
-      setToken(savedToken);
+  initAuth();
+}, [refreshProfile, fetchCart, fetchWishlist]);
+  // useEffect(() => {
+  //   const initAuth = async () => {
+  //     const savedToken = sessionStorage.getItem("customer_token");
+  //     if (!savedToken) {
+  //       setCart([]);
+  //       setWishlist([]);
+  //       setAuthLoading(false);
+  //       return;
+  //     }
 
-      try {
-        await refreshProfile();
-        await fetchCart();
-        await fetchWishlist();
-      } catch (error) {
-        console.error("Auth init error:", error);
-        clearAuthTokens();
-        setCustomer(null);
-        setToken(null);
-        setCart([]);
-        setWishlist([]);
-      } finally {
-        setAuthLoading(false);
-      }
-    };
+  //     setToken(savedToken);
 
-    initAuth();
-  }, [fetchCart, fetchWishlist, refreshProfile]);
+  //     try {
+  //       await refreshProfile();
+  //       await fetchCart();
+  //       await fetchWishlist();
+  //     } catch (error) {
+  //       console.error("Auth init error:", error);
+  //       clearAuthTokens();
+  //       setCustomer(null);
+  //       setToken(null);
+  //       setCart([]);
+  //       setWishlist([]);
+  //     } finally {
+  //       setAuthLoading(false);
+  //     }
+  //   };
+
+  //   initAuth();
+  // }, [fetchCart, fetchWishlist, refreshProfile]);
 
   const login = async (identifier, password) => {
     const trimmed = identifier.trim();
@@ -270,9 +323,9 @@ export const ShopProvider = ({ children }) => {
       throw Object.assign(new Error(message), { response: { data: response } });
     }
 
-    persistAuthTokens(authToken, refreshToken);
+    // persistAuthTokens(authToken, refreshToken);
     const normalizedCustomer = normalizeCustomer(authCustomer);
-    setToken(authToken);
+    // setToken(authToken);
     setCustomer(normalizedCustomer);
     await fetchCart();
     await fetchWishlist();
@@ -297,7 +350,7 @@ export const ShopProvider = ({ children }) => {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      clearAuthTokens();
+      // clearAuthTokens();
       setCustomer(null);
       setToken(null);
       setCart([]);
@@ -350,14 +403,18 @@ export const ShopProvider = ({ children }) => {
     }
   };
 
-  const isLoggedIn = () =>
-    Boolean(sessionStorage.getItem("customer_token") || customer);
+  const isLoggedIn = () => Boolean(customer);
+  // const isLoggedIn = () =>
+  //   Boolean(sessionStorage.getItem("customer_token") || customer);
 
   const addToCart = async (product) => {
-    const token = sessionStorage.getItem("customer_token");
-    if (!token) {
-      return false;
-    }
+    // const token = sessionStorage.getItem("customer_token");
+    // if (!token) {
+    //   return false;
+    // }
+    if (!customer) {
+  return false;
+}
 
     try {
       const sizes = normalizeSizes(product);
@@ -470,10 +527,13 @@ export const ShopProvider = ({ children }) => {
     cart.reduce((count, item) => count + Number(item.qty || item.quantity || 1), 0);
 
   const toggleWishlist = async (product) => {
-    const token = sessionStorage.getItem("customer_token");
-    if (!token) {
-      return false;
-    }
+    // const token = sessionStorage.getItem("customer_token");
+    // if (!token) {
+    //   return false;
+    // }
+    if (!customer) {
+  return false;
+}
 
     try {
       await toggleWishlistApi(product.product_id || product.id);

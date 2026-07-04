@@ -649,9 +649,9 @@ const Profile = () => {
                             </div>
                             <div className="flex gap-3 mt-2">
                               <button onClick={() => handleTrackOrder(order.id)} className="text-xs text-primary hover:underline">Track Order</button>
-                              <button onClick={() => handleDownloadInvoice(order.id)} className="text-xs text-stone-500 hover:text-primary flex items-center gap-1">
+                              {/* <button onClick={() => handleDownloadInvoice(order.id)} className="text-xs text-stone-500 hover:text-primary flex items-center gap-1">
                                 <Download className="w-3 h-3" /> Invoice
-                              </button>
+                              </button> */}
                               {order.status === "Delivered" && (
                                 <button onClick={() => handleReorder(order)} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full hover:bg-primary/20 transition">
                                   Buy Again
@@ -669,43 +669,75 @@ const Profile = () => {
 
             {/* Wishlist Tab */}
             {activeTab === "wishlist" && (
-              <div>
-                <h3 className="text-sm font-semibold text-stone-800 mb-4">Saved Items ({wishlist.length})</h3>
-                {wishlist.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Heart className="w-10 h-10 text-stone-300 mx-auto mb-2" />
-                    <p className="text-stone-500 text-sm mb-2">Your wishlist is empty</p>
-                    <Link to="/sarees" className="text-sm text-primary hover:underline">Browse Collection</Link>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {wishlist.map((item) => (
-                      <div key={item.id} className="flex gap-3 p-3 border border-stone-100 rounded-lg">
-                        <img src={item.image} alt={item.name} className="w-16 h-20 rounded-lg object-cover" />
-                        <div className="flex-1">
-                          <h4 className="text-sm font-medium text-stone-800">{item.name}</h4>
-                          <p className="text-sm font-bold text-primary mt-1">₹{item.price?.toLocaleString()}</p>
-                          <div className="flex gap-2 mt-2">
-                            <button 
-                              onClick={() => { addToCart(item); setSuccessMsg("Added to cart!"); setTimeout(() => setSuccessMsg(""), 2000); }}
-                              className="text-xs bg-primary text-white px-3 py-1 rounded-full hover:bg-primary/90 transition"
-                            >
-                              Add to Cart
-                            </button>
-                            <button 
-                              onClick={() => removeFromWishlist(item.id)}
-                              className="text-xs text-stone-400 hover:text-red-500 transition"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+  <div>
+    <h3 className="text-sm font-semibold text-stone-800 mb-4">
+      Saved Items ({wishlist.length})
+    </h3>
+
+    {wishlist.length === 0 ? (
+      <div className="text-center py-8">
+        <Heart className="w-10 h-10 text-stone-300 mx-auto mb-2" />
+        <p className="text-stone-500 text-sm mb-2">Your wishlist is empty</p>
+        <Link to="/sarees" className="text-sm text-primary hover:underline">
+          Browse Collection
+        </Link>
+      </div>
+    ) : (
+      <div className="space-y-3">
+        {wishlist.map((item) => {
+          const productPath = item.slug
+            ? `/product/${item.slug}`
+            : `/product/${item.product_slug || item.product_id || item.id}`;
+
+          return (
+            <div
+              key={item.id}
+              onClick={() => navigate(productPath)}
+              className="flex gap-3 p-3 border border-stone-100 rounded-lg cursor-pointer hover:border-primary/40 hover:bg-stone-50 transition"
+            >
+              <img
+                src={item.image ? getImageUrl(item.image) : ""}
+                alt={item.name}
+                className="w-16 h-20 rounded-lg object-cover"
+              />
+
+              <div className="flex-1">
+                <h4 className="text-sm font-medium text-stone-800">{item.name}</h4>
+                <p className="text-sm font-bold text-primary mt-1">
+                  ₹{item.price?.toLocaleString()}
+                </p>
+
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addToCart(item);
+                      setSuccessMsg("Added to cart!");
+                      setTimeout(() => setSuccessMsg(""), 2000);
+                    }}
+                    className="text-xs bg-primary text-white px-3 py-1 rounded-full hover:bg-primary/90 transition"
+                  >
+                    Add to Cart
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFromWishlist(item.id);
+                    }}
+                    className="text-xs text-stone-400 hover:text-red-500 transition"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
-            )}
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+)}
 
             {/* Addresses Tab */}
             {activeTab === "addresses" && (
