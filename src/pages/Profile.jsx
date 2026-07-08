@@ -19,6 +19,7 @@ import {
 } from "@/services/addressService";
 import { getCustomerProfile } from "@/services/customerAuthService";
 import { getImageUrl } from "@/api/axiosClient";
+import { getProductBySlug } from "@/services/productService";
 
 const mapApiAddressToUi = (addr) => ({
   id: addr.id,
@@ -48,7 +49,8 @@ const mapUiAddressToApi = (addr, isDefault = false) => ({
 const Profile = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { wishlist, cart, addToCart, removeFromWishlist, toggleWishlist, user, logout, updateUser, refreshProfile } = useShop();
+  const { wishlist, cart, addToCart, removeFromWishlist, toggleWishlist, fetchWishlist, user, logout, updateUser, refreshProfile } = useShop();
+  // const { wishlist, cart, addToCart, removeFromWishlist, toggleWishlist, user, logout, updateUser, refreshProfile } = useShop();
   const [activeTab, setActiveTab] = useState("overview");
   const [isEditing, setIsEditing] = useState(false);
   const [userData, setUserData] = useState(user);
@@ -119,6 +121,13 @@ const Profile = () => {
       }
     }
   }, [user]);
+
+
+ useEffect(() => {
+  if (user) {
+    fetchWishlist();
+  }
+}, [user, fetchWishlist]);
 
   useEffect(() => {
     const loadProfileData = async () => {
@@ -376,6 +385,70 @@ const Profile = () => {
       </div>
     );
   }
+
+  const handleWishlistAddToCart = async (item) => {
+  try {
+    let fullProduct = item;
+
+    if (item.slug) {
+      fullProduct = await getProductBySlug(item.slug);
+    }
+
+    const variants = fullProduct.variants || fullProduct.product_variants || [];
+
+    const sizes = [
+      ...new Set(
+        variants
+          .map((v) => v.size)
+          .filter(Boolean)
+      ),
+    ];
+
+    const firstVariant = variants[0] || null;
+    const firstSize = sizes[0] || firstVariant?.size || "Free Size";
+
+    const success = await addToCart({
+      product_id: fullProduct.id || item.product_id || item.id,
+      variant_id: firstVariant?.id || null,
+      quantity: 1,
+      selected_size: firstSize,
+      selected_color: firstVariant?.color || fullProduct.color || "",
+      item_price: Number(
+        firstVariant?.offer_price ||
+          firstVariant?.price ||
+          fullProduct.offer_price ||
+          fullProduct.price ||
+          item.price ||
+          0
+      ),
+      item_data: {
+        image: item.image || fullProduct.thumbnail || "",
+        slug: fullProduct.slug || item.slug,
+        name: fullProduct.name || item.name,
+        brand: fullProduct.brand || "",
+        fabric: fullProduct.fabric || "",
+        material: fullProduct.material || "",
+        sizes: sizes.length ? sizes : [firstSize],
+        colors: [
+          ...new Set(
+            variants
+              .map((v) => v.color)
+              .filter(Boolean)
+          ),
+        ],
+      },
+    });
+
+    if (success) {
+      setSuccessMsg("Added to cart!");
+      setTimeout(() => setSuccessMsg(""), 2000);
+    }
+  } catch (error) {
+    console.error("Wishlist add to cart error:", error);
+    setErrorMsg("Failed to add to cart");
+    setTimeout(() => setErrorMsg(""), 2000);
+  }
+};
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -709,12 +782,16 @@ const Profile = () => {
 
                 <div className="flex gap-2 mt-2">
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      addToCart(item);
-                      setSuccessMsg("Added to cart!");
-                      setTimeout(() => setSuccessMsg(""), 2000);
-                    }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleWishlistAddToCart(item);
+                  }}
+                    // onClick={(e) => {
+                    //   e.stopPropagation();
+                    //   addToCart(item);
+                    //   setSuccessMsg("Added to cart!");
+                    //   setTimeout(() => setSuccessMsg(""), 2000);
+                    // }}
                     className="text-xs bg-primary text-white px-3 py-1 rounded-full hover:bg-primary/90 transition"
                   >
                     Add to Cart

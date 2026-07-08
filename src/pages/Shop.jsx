@@ -11,10 +11,11 @@ import {
 } from "lucide-react";
 import { useShop } from "../ShopContext.jsx";
 import { useProtectedActions } from "@/hooks/useProtectedActions";
-import { getProducts } from "@/services/productService";
+// import { getProducts } from "@/services/productService";
 import { getCategoryHierarchy } from "@/services/categoryService";
 import { getImageUrl } from "@/api/axiosClient";
 import { extractProductSizes } from "@/utils/productHelpers";
+import { getProducts, getProductBySlug } from "@/services/productService";
 
 
 const FALLBACK_IMAGE =
@@ -133,39 +134,108 @@ const Shop = () => {
     if (product.slug) navigate(`/product/${product.slug}`);
   };
 
-  const handleAddToCart = async (e, product) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const getVariantPrice = (variant) =>
+  Number(variant?.offer_price || variant?.price || 0);
 
-    const sizes = extractProductSizes(product);
+const handleAddToCart = async (e, product) => {
+  e.preventDefault();
+  e.stopPropagation();
 
-    const success = await addToCartProtected({
-      product_id: product.id,
-      variant_id: null,
-      quantity: 1,
-      selected_size: sizes[0] || "Free Size",
-      selected_color: product.color || "",
-      item_price: Number(product.offer_price || product.price || 0),
-      item_data: {
-        image: product.image,
-        slug: product.slug,
-        name: product.name,
-        brand: product.brand || "",
-        fabric: product.fabric || "",
-        material: product.material || "",
-        sizes,
-        colors: product.colors || [],
-      },
-    });
+  let fullProduct = product;
 
-    if (!success) return;
+  if (product.slug) {
+    try {
+      fullProduct = await getProductBySlug(product.slug);
+    } catch (error) {
+      console.error("Full product fetch failed:", error);
+    }
+  }
 
-    setAddedToCart((prev) => ({ ...prev, [product.id]: true }));
+  const variants = fullProduct.variants || fullProduct.product_variants || [];
 
-    setTimeout(() => {
-      setAddedToCart((prev) => ({ ...prev, [product.id]: false }));
-    }, 1500);
-  };
+  const lowestVariant = variants.length
+    ? [...variants].sort((a, b) => getVariantPrice(a) - getVariantPrice(b))[0]
+    : null;
+
+  const sizes = [...new Set(variants.map((v) => v.size).filter(Boolean))];
+  const colors = [...new Set(variants.map((v) => v.color).filter(Boolean))];
+
+  const selectedSize = lowestVariant?.size || sizes[0] || "";
+  const selectedColor = lowestVariant?.color || "";
+
+  const success = await addToCartProtected({
+    product_id: fullProduct.id || product.id,
+    variant_id: lowestVariant?.id || null,
+    quantity: 1,
+    selected_size: selectedSize,
+    selected_color: selectedColor,
+    item_price: Number(
+      lowestVariant?.offer_price ||
+      lowestVariant?.price ||
+      fullProduct.offer_price ||
+      fullProduct.price ||
+      0
+    ),
+    item_data: {
+      image: product.image,
+      slug: fullProduct.slug || product.slug,
+      name: fullProduct.name || product.name,
+      brand: fullProduct.brand || "",
+      fabric: lowestVariant?.fabric || fullProduct.fabric || "",
+      material: fullProduct.material || "",
+      sizes: sizes.length ? sizes : [selectedSize],
+      colors,
+      variants: variants.map((v) => ({
+        id: v.id,
+        size: v.size,
+        color: v.color,
+        price: Number(v.price || 0),
+        offer_price: Number(v.offer_price || v.price || 0),
+      })),
+    },
+  });
+
+  if (!success) return;
+
+  setAddedToCart((prev) => ({ ...prev, [product.id]: true }));
+
+  setTimeout(() => {
+    setAddedToCart((prev) => ({ ...prev, [product.id]: false }));
+  }, 1500);
+};
+  // const handleAddToCart = async (e, product) => {
+  //   e.preventDefault();
+  //   e.stopPropagation();
+
+  //   const sizes = extractProductSizes(product);
+
+  //   const success = await addToCartProtected({
+  //     product_id: product.id,
+  //     variant_id: null,
+  //     quantity: 1,
+  //     selected_size: sizes[0] || "Free Size",
+  //     selected_color: product.color || "",
+  //     item_price: Number(product.offer_price || product.price || 0),
+  //     item_data: {
+  //       image: product.image,
+  //       slug: product.slug,
+  //       name: product.name,
+  //       brand: product.brand || "",
+  //       fabric: product.fabric || "",
+  //       material: product.material || "",
+  //       sizes,
+  //       colors: product.colors || [],
+  //     },
+  //   });
+
+  //   if (!success) return;
+
+  //   setAddedToCart((prev) => ({ ...prev, [product.id]: true }));
+
+  //   setTimeout(() => {
+  //     setAddedToCart((prev) => ({ ...prev, [product.id]: false }));
+  //   }, 1500);
+  // };
 
   const getDiscount = (price, oldPrice) =>
     oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : null;
@@ -353,9 +423,9 @@ const Shop = () => {
                     </div>
 
                     <div className="hidden sm:flex items-center gap-2 mb-3">
-                      <span className="flex items-center gap-1 text-[10px] text-green-600">
+                      {/* <span className="flex items-center gap-1 text-[10px] text-green-600">
                         <Truck className="w-3 h-3" /> Free Delivery
-                      </span>
+                      </span> */}
                       <span className="flex items-center gap-1 text-[10px] text-stone-500">
                         <Shield className="w-3 h-3" /> Secure
                       </span>

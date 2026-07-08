@@ -81,7 +81,9 @@ const normalizeCartItem = (item) => {
       : item.thumbnail
       ? getImageUrl(item.thumbnail)
       : "",
-    price: Number(item.price || item.offer_price || item.item_price || 0),
+      price: Number(item.item_price || item.price || item.offer_price || 0),
+variants: itemData.variants || item.variants || [],
+    // price: Number(item.price || item.offer_price || item.item_price || 0),
     oldPrice: Number(item.oldPrice || item.old_price || item.mrp || 0),
     fabric: item.fabric || itemData.fabric || "",
     material: item.material || itemData.material || "",
@@ -176,22 +178,36 @@ export const ShopProvider = ({ children }) => {
     setLoginModal({ open: false, from: null, pendingAction: null });
   }, []);
 
-  const fetchCart = useCallback(async () => {
-    try {
-      setCartLoading(true);
-      const data = await getCartItems();
-      setCart((data || []).map(normalizeCartItem));
-    } catch (error) {
-      console.error("Fetch cart error:", error);
-      setCart([]);
-    } finally {
-      setCartLoading(false);
-    }
-  }, []);
-
-  const fetchWishlist = useCallback(async () => {
+  const fetchCart = useCallback(async (showLoader = false) => {
   try {
-    if (!customer) {
+    if (showLoader) setCartLoading(true);
+
+    const data = await getCartItems();
+    setCart((data || []).map(normalizeCartItem));
+  } catch (error) {
+    console.error("Fetch cart error:", error);
+    setCart([]);
+  } finally {
+    if (showLoader) setCartLoading(false);
+  }
+}, []);
+  // const fetchCart = useCallback(async () => {
+  //   try {
+  //     setCartLoading(true);
+  //     const data = await getCartItems();
+  //     setCart((data || []).map(normalizeCartItem));
+  //   } catch (error) {
+  //     console.error("Fetch cart error:", error);
+  //     setCart([]);
+  //   } finally {
+  //     setCartLoading(false);
+  //   }
+  // }, []);
+
+
+  const fetchWishlist = useCallback(async (activeCustomer = null) => {
+  try {
+    if (!activeCustomer && !customer) {
       setWishlist([]);
       return;
     }
@@ -203,24 +219,21 @@ export const ShopProvider = ({ children }) => {
     setWishlist([]);
   }
 }, [customer]);
-  // const fetchWishlist = useCallback(async () => {
-  //   try {
-  //     if (!customer) {
-  //       setWishlist([]);
-  //       return;
-  //     }
-  //     // const token = sessionStorage.getItem("customer_token");
-  //     // if (!token) {
-  //     //   setWishlist([]);
-  //     //   return;
-  //     // }
-  //     const data = await getWishlistItems();
-  //     setWishlist((data || []).map(normalizeWishlistItem));
-  //   } catch (error) {
-  //     console.error("Fetch wishlist error:", error);
-  //     setWishlist([]);
-  //   }
-  // }, []);
+//   const fetchWishlist = useCallback(async () => {
+//   try {
+//     if (!customer) {
+//       setWishlist([]);
+//       return;
+//     }
+
+//     const data = await getWishlistItems();
+//     setWishlist((data || []).map(normalizeWishlistItem));
+//   } catch (error) {
+//     console.error("Fetch wishlist error:", error);
+//     setWishlist([]);
+//   }
+// }, [customer]);
+ 
 
   const refreshProfile = useCallback(async () => {
   const profileResponse = await getCustomerProfile();
@@ -256,11 +269,16 @@ export const ShopProvider = ({ children }) => {
   useEffect(() => {
   const initAuth = async () => {
     try {
-      await refreshProfile();
-      await fetchCart();
-      await fetchWishlist();
-      // await refreshProfile();
+      const profileCustomer = await refreshProfile();
+
       // await fetchCart();
+      await fetchCart(true);
+
+      if (profileCustomer) {
+        await fetchWishlist(profileCustomer);
+      } else {
+        setWishlist([]);
+      }
     } catch (error) {
       setCustomer(null);
       setToken(null);
@@ -273,36 +291,28 @@ export const ShopProvider = ({ children }) => {
 
   initAuth();
 }, [refreshProfile, fetchCart, fetchWishlist]);
-  // useEffect(() => {
-  //   const initAuth = async () => {
-  //     const savedToken = sessionStorage.getItem("customer_token");
-  //     if (!savedToken) {
-  //       setCart([]);
-  //       setWishlist([]);
-  //       setAuthLoading(false);
-  //       return;
-  //     }
 
-  //     setToken(savedToken);
+//   useEffect(() => {
+//   const initAuth = async () => {
+//     try {
+//       await refreshProfile();
+//       await fetchCart();
+//       await fetchWishlist();
+//       // await refreshProfile();
+//       // await fetchCart();
+//     } catch (error) {
+//       setCustomer(null);
+//       setToken(null);
+//       setCart([]);
+//       setWishlist([]);
+//     } finally {
+//       setAuthLoading(false);
+//     }
+//   };
 
-  //     try {
-  //       await refreshProfile();
-  //       await fetchCart();
-  //       await fetchWishlist();
-  //     } catch (error) {
-  //       console.error("Auth init error:", error);
-  //       clearAuthTokens();
-  //       setCustomer(null);
-  //       setToken(null);
-  //       setCart([]);
-  //       setWishlist([]);
-  //     } finally {
-  //       setAuthLoading(false);
-  //     }
-  //   };
-
-  //   initAuth();
-  // }, [fetchCart, fetchWishlist, refreshProfile]);
+//   initAuth();
+// }, [refreshProfile, fetchCart]);
+  
 
   const login = async (identifier, password) => {
     const trimmed = identifier.trim();
@@ -441,9 +451,23 @@ export const ShopProvider = ({ children }) => {
         item_data: itemData,
       };
 
-      await addCartItem(payload);
-      await fetchCart();
-      window.dispatchEvent(new Event("cart-updated"));
+      // await addCartItem(payload);
+      // await fetchCart();
+      // window.dispatchEvent(new Event("cart-updated"));
+      const saved = await addCartItem(payload);
+        setCart((prev) => {
+          const normalized = normalizeCartItem({
+            ...payload,
+            ...(saved || {}),
+            cart_id: saved?.cart_id || saved?.id || Date.now(),
+            cartItemId: saved?.cartItemId || saved?.cart_id || saved?.id || Date.now(),
+            qty: payload.quantity,
+          });
+
+          return [normalized, ...prev];
+        });
+
+        window.dispatchEvent(new Event("cart-updated"));
       return true;
     } catch (error) {
       console.error("Add cart error:", error);
@@ -459,8 +483,10 @@ export const ShopProvider = ({ children }) => {
         prev.filter((item) => String(getItemKey(item)) !== cartId)
       );
       await removeCartItemApi(cartId);
-      await fetchCart();
-      window.dispatchEvent(new Event("cart-updated"));
+window.dispatchEvent(new Event("cart-updated"));
+      // await removeCartItemApi(cartId);
+      // await fetchCart();
+      // window.dispatchEvent(new Event("cart-updated"));
     } catch (error) {
       console.error("Remove cart error:", error);
       alert(error.response?.data?.message || "Remove failed");
@@ -479,8 +505,10 @@ export const ShopProvider = ({ children }) => {
         )
       );
       await updateCartItemApi(cartId, { quantity: newQty });
-      await fetchCart();
-      window.dispatchEvent(new Event("cart-updated"));
+window.dispatchEvent(new Event("cart-updated"));
+      // await updateCartItemApi(cartId, { quantity: newQty });
+      // await fetchCart();
+      // window.dispatchEvent(new Event("cart-updated"));
     } catch (error) {
       console.error("Update quantity error:", error);
       alert(error.response?.data?.message || "Quantity update failed");
@@ -488,31 +516,72 @@ export const ShopProvider = ({ children }) => {
     }
   };
 
-  const updateSize = async (key, size) => {
-    const cartId = String(key);
 
-    try {
-      setCart((prev) =>
-        prev.map((item) =>
-          String(getItemKey(item)) === cartId ? { ...item, size } : item
-        )
-      );
-      await updateCartItemApi(cartId, { selected_size: size });
-      await fetchCart();
-      window.dispatchEvent(new Event("cart-updated"));
-    } catch (error) {
-      console.error("Update size error:", error);
-      alert(error.response?.data?.message || "Size update failed");
-      await fetchCart();
-    }
-  };
+  const updateSize = async (key, size, extra = {}) => {
+  const cartId = String(key);
+
+  try {
+    setCart((prev) =>
+      prev.map((item) =>
+        String(getItemKey(item)) === cartId
+          ? {
+              ...item,
+              size,
+              variant_id: extra.variant_id ?? item.variant_id,
+              color: extra.selected_color ?? item.color,
+              price: extra.item_price ?? item.price,
+            }
+          : item
+      )
+    );
+
+    await updateCartItemApi(cartId, {
+      selected_size: size,
+      ...extra,
+    });
+
+    window.dispatchEvent(new Event("cart-updated"));
+    // await updateCartItemApi(cartId, {
+    //   selected_size: size,
+    //   ...extra,
+    // });
+
+    // await fetchCart();
+    // window.dispatchEvent(new Event("cart-updated"));
+  } catch (error) {
+    console.error("Update size error:", error);
+    alert(error.response?.data?.message || "Size update failed");
+    await fetchCart();
+  }
+};
+  // const updateSize = async (key, size) => {
+  //   const cartId = String(key);
+
+  //   try {
+  //     setCart((prev) =>
+  //       prev.map((item) =>
+  //         String(getItemKey(item)) === cartId ? { ...item, size } : item
+  //       )
+  //     );
+  //     await updateCartItemApi(cartId, { selected_size: size });
+  //     await fetchCart();
+  //     window.dispatchEvent(new Event("cart-updated"));
+  //   } catch (error) {
+  //     console.error("Update size error:", error);
+  //     alert(error.response?.data?.message || "Size update failed");
+  //     await fetchCart();
+  //   }
+  // };
 
   const clearCart = async () => {
     try {
       setCart([]);
       await clearCartItemsApi();
-      await fetchCart();
       window.dispatchEvent(new Event("cart-updated"));
+      // setCart([]);
+      // await clearCartItemsApi();
+      // await fetchCart();
+      // window.dispatchEvent(new Event("cart-updated"));
     } catch (error) {
       console.error("Clear cart error:", error);
       alert(error.response?.data?.message || "Clear cart failed");

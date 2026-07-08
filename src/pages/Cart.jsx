@@ -7,13 +7,14 @@ import {
 import { useShop } from "../ShopContext.jsx";
 import { validateCoupon } from "@/services/couponService";
 import { getImageUrl } from "@/api/axiosClient";
+import { getStoreSettings } from "@/services/settingService";
 
 const Cart = () => {
   const navigate = useNavigate();
   const {
     cart,
     cartLoading,
-    fetchCart,
+    // fetchCart,
     removeFromCart: removeCartItem,
     updateQuantity: updateCartQuantity,
     updateSize: updateCartSize,
@@ -27,6 +28,7 @@ const Cart = () => {
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [discount, setDiscount] = useState(0);
   const [couponMessage, setCouponMessage] = useState("");
+  const [storeSettings, setStoreSettings] = useState({});
 
   const getNumericPrice = (priceVal) => {
     if (typeof priceVal === "number") return priceVal;
@@ -35,9 +37,36 @@ const Cart = () => {
     return Number(cleanString) || 0;
   };
 
+//   useEffect(() => {
+//   const fetchSettings = async () => {
+//     try {
+//       const data = await getStoreSettings();
+
+//       console.log("Store Settings:", data);
+
+//       setStoreSettings(data || {});
+//     } catch (err) {
+//       console.error(err);
+//     }
+//   };
+
+//   fetchSettings();
+// }, []);
   useEffect(() => {
-    fetchCart();
-  }, [fetchCart]);
+  const fetchSettings = async () => {
+    try {
+      const data = await getStoreSettings();
+      setStoreSettings(data || {});
+    } catch (error) {
+      console.error("Shipping settings fetch error:", error);
+    }
+  };
+
+  fetchSettings();
+}, []);
+  // useEffect(() => {
+  //   fetchCart();
+  // }, [fetchCart]);
 
   const totalQuantity = useMemo(
     () => cart.reduce((sum, item) => sum + Number(item.qty || item.quantity || 1), 0),
@@ -53,7 +82,36 @@ const Cart = () => {
     [cart]
   );
 
-  const shipping = subtotal > 999 || subtotal === 0 ? 0 : 99;
+  // const shipping = subtotal > 999 || subtotal === 0 ? 0 : 99;
+  // const shipping = 0;
+  const shippingSettings = storeSettings?.shipping || {};
+
+const shipping = useMemo(() => {
+  if (cart.length === 0 || subtotal === 0) return 0;
+
+  const shippingEnabled =
+    shippingSettings.shipping_enabled === true ||
+    shippingSettings.shipping_enabled === "true" ||
+    shippingSettings.shipping_enabled === 1 ||
+    shippingSettings.shipping_enabled === "1";
+
+  const freeShippingEnabled =
+    shippingSettings.free_shipping_enabled === true ||
+    shippingSettings.free_shipping_enabled === "true" ||
+    shippingSettings.free_shipping_enabled === 1 ||
+    shippingSettings.free_shipping_enabled === "1";
+
+  const shippingCharge = Number(shippingSettings.shipping_charge || 0);
+  const freeAbove = Number(shippingSettings.free_shipping_above || 0);
+
+  if (!shippingEnabled) return 0;
+
+  if (freeShippingEnabled && freeAbove > 0 && subtotal >= freeAbove) {
+    return 0;
+  }
+
+  return shippingCharge;
+}, [cart.length, subtotal, shippingSettings]);
   const total = Math.max(0, subtotal + shipping - discount);
 
   const resetCoupon = () => {
@@ -68,10 +126,33 @@ const Cart = () => {
     resetCoupon();
   };
 
-  const updateSize = async (cartId, size) => {
-    await updateCartSize(cartId, size);
-    resetCoupon();
-  };
+  // const updateSize = async (cartId, size) => {
+  //   await updateCartSize(cartId, size);
+  //   resetCoupon();
+  // };
+  const updateSize = async (cartId, size, item) => {
+  // const matchedVariant = item.variants?.find(
+  //   (v) => String(v.size) === String(size)
+  // );
+  const matchedVariant = item.variants?.find(
+  (v) =>
+    String(v.size) === String(size) &&
+    (!item.color || String(v.color) === String(item.color))
+);
+
+  await updateCartSize(cartId, size, {
+    variant_id: matchedVariant?.id || item.variant_id || null,
+    selected_color: matchedVariant?.color || item.color || "",
+    item_price: Number(
+      matchedVariant?.offer_price ||
+      matchedVariant?.price ||
+      item.price ||
+      0
+    ),
+  });
+
+  resetCoupon();
+};
 
   const removeFromCart = async (cartId) => {
     await removeCartItem(cartId);
@@ -113,18 +194,42 @@ const Cart = () => {
     }
 
     navigate("/checkout", {
-      state: {
-        coupon_id: appliedCoupon?.coupon_id || null,
-        coupon_code: couponApplied ? appliedCoupon?.coupon_code || couponCode.trim().toUpperCase() : "",
-        coupon_type: appliedCoupon?.coupon_type || "",
-        coupon_value: appliedCoupon?.coupon_value || 0,
-        discount_amount: discount,
-        coupon_message: couponMessage,
-        subtotal,
-        shipping,
-        total,
-      },
-    });
+  state: {
+    coupon_id: appliedCoupon?.coupon_id || null,
+    coupon_code: couponApplied
+      ? appliedCoupon?.coupon_code || couponCode.trim().toUpperCase()
+      : "",
+    coupon_type: appliedCoupon?.coupon_type || "",
+    coupon_value: appliedCoupon?.coupon_value || 0,
+    discount_amount: discount,
+    coupon_message: couponMessage,
+
+    subtotal,
+    shipping,
+    total,
+
+    shipping_label:
+      shippingSettings.shipping_label || "Standard Delivery",
+
+    estimated_delivery_days:
+      shippingSettings.estimated_delivery_days || "",
+
+    shipping_settings: shippingSettings,
+  },
+});
+    // navigate("/checkout", {
+    //   state: {
+    //     coupon_id: appliedCoupon?.coupon_id || null,
+    //     coupon_code: couponApplied ? appliedCoupon?.coupon_code || couponCode.trim().toUpperCase() : "",
+    //     coupon_type: appliedCoupon?.coupon_type || "",
+    //     coupon_value: appliedCoupon?.coupon_value || 0,
+    //     discount_amount: discount,
+    //     coupon_message: couponMessage,
+    //     subtotal,
+    //     shipping,
+    //     total,
+    //   },
+    // });
   };
 
   return (
@@ -157,7 +262,25 @@ const Cart = () => {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        {cart.length > 0 && subtotal < 999 && (
+        {cart.length > 0 && (
+  <div className="max-w-3xl mx-auto mb-8">
+    <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-4">
+      <div className="flex items-center gap-2">
+        <Truck className="w-5 h-5 text-green-600" />
+        {/* <span className="text-sm font-semibold text-green-600">
+          🎉 Free Shipping on all orders
+        </span> */}
+        <span className="text-sm font-semibold text-green-600">
+          {shipping === 0
+            ? ` ${shippingSettings.shipping_label || "Free Shipping"}`
+            : `${shippingSettings.shipping_label || "Standard Delivery"} · ₹${shipping}`}
+        </span>
+
+      </div>
+    </div>
+  </div>
+)}
+        {/* {cart.length > 0 && subtotal < 999 && (
           <div className="max-w-3xl mx-auto mb-8">
             <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-4">
               <div className="flex items-center justify-between mb-2">
@@ -178,7 +301,7 @@ const Cart = () => {
               </div>
             </div>
           </div>
-        )}
+        )} */}
 
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
           <div className="w-full lg:w-2/3">
@@ -201,7 +324,12 @@ const Cart = () => {
               )}
             </div>
 
-            {cartLoading ? (
+            {/* {cartLoading ? (
+              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-12 text-center">
+                Loading cart...
+              </div>
+            ) : cart.length === 0 ? ( */}
+            {cartLoading && cart.length === 0 ? (
               <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-12 text-center">
                 Loading cart...
               </div>
@@ -247,7 +375,15 @@ const Cart = () => {
                     >
                       <div className="flex flex-col sm:flex-row gap-4">
                         <div className="relative w-full sm:w-28 h-32 flex-shrink-0">
-                          <Link to={`/product/${item.slug}`}>
+                          {/* <Link to={`/product/${item.slug}`}> */}
+                          <Link
+                              to={`/product/${item.slug}`}
+                              state={{
+                                selectedVariantId: item.variant_id,
+                                selectedSize: item.size,
+                                selectedColor: item.color,
+                              }}
+                            >
                             <img
                               src={item.image ? getImageUrl(item.image) : ""}
                               alt={item.name}
@@ -268,7 +404,15 @@ const Cart = () => {
                         <div className="flex-1">
                           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                             <div>
-                              <Link to={`/product/${item.slug}`}>
+                              <Link
+                                to={`/product/${item.slug}`}
+                                state={{
+                                  selectedVariantId: item.variant_id,
+                                  selectedSize: item.size,
+                                  selectedColor: item.color,
+                                }}
+                              >
+                              {/* <Link to={`/product/${item.slug}`}> */}
                                 <h3 className="font-heading text-lg text-stone-800 hover:text-primary transition-colors">
                                   {item.name}
                                 </h3>
@@ -322,7 +466,8 @@ const Cart = () => {
 
                               <select
                                 value={item.size || "Free Size"}
-                                onChange={(e) => updateSize(key, e.target.value)}
+                                onChange={(e) => updateSize(key, e.target.value, item)}
+                                // onChange={(e) => updateSize(key, e.target.value)}
                                 className="bg-stone-50 border border-stone-200 rounded-lg text-xs px-3 py-1.5 outline-none focus:border-primary"
                               >
                                 {sizeOptions.map((size) => (
@@ -385,7 +530,7 @@ const Cart = () => {
                 Order Summary
               </h2>
 
-              {/* <div className="mb-4 pb-4 boitem.stockrder-b border-stone-100">
+              <div className="mb-4 pb-4 boitem.stockrder-b border-stone-100">
                 <label className="text-xs font-semibold text-stone-700 uppercase tracking-wider mb-2 block">
                   Coupon Code
                 </label>
@@ -425,7 +570,7 @@ const Cart = () => {
                     Enter valid coupon code from admin panel
                   </p>
                 )}
-              </div> */}
+              </div>
 
               <div className="space-y-3 text-sm mb-4 pb-4 border-b border-stone-100">
                 <div className="flex justify-between text-stone-600">
@@ -456,6 +601,12 @@ const Cart = () => {
                     <span>₹{shipping}</span>
                   )}
                 </div>
+                {/* {shippingSettings.estimated_delivery_days && cart.length > 0 && (
+  <div className="flex justify-between text-stone-600">
+    <span>Estimated Delivery</span>
+    <span>{shippingSettings.estimated_delivery_days}</span>
+  </div>
+)} */}
               </div>
 
               <div className="flex justify-between items-center mb-6">

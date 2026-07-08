@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+// import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import {
   ShoppingCart,
   Heart,
@@ -228,6 +229,8 @@ const DeliveryReturns = () => (
 const ProductDetail = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+const cartSelection = location.state || {};
 
   const [product, setProduct] = useState(null);
   const [similarProducts, setSimilarProducts] = useState([]);
@@ -370,13 +373,39 @@ const ProductDetail = () => {
         const groups = groupVariantsByColor(data);
         setColorGroups(groups);
 
+        // if (groups.length > 0) {
+        //   const firstGroup = groups[0];
+        //   setSelectedColor(firstGroup.color);
+        //   setSelectedColorGroup(firstGroup);
+        //   setSelectedSize(firstGroup.sizes[0] || "");
+        //   setSelectedVariant(findVariantForColorSize(firstGroup, firstGroup.sizes[0] || ""));
+        // }
         if (groups.length > 0) {
-          const firstGroup = groups[0];
-          setSelectedColor(firstGroup.color);
-          setSelectedColorGroup(firstGroup);
-          setSelectedSize(firstGroup.sizes[0] || "");
-          setSelectedVariant(findVariantForColorSize(firstGroup, firstGroup.sizes[0] || ""));
-        } else {
+  let targetGroup =
+    groups.find((g) => String(g.color) === String(cartSelection.selectedColor)) ||
+    groups[0];
+
+  let targetSize =
+    cartSelection.selectedSize ||
+    targetGroup.sizes[0] ||
+    "";
+
+  let targetVariant =
+    targetGroup.variants.find(
+      (v) => String(v.id) === String(cartSelection.selectedVariantId)
+    ) ||
+    findVariantForColorSize(targetGroup, targetSize);
+
+  if (targetVariant) {
+    targetSize = targetVariant.size || targetSize;
+  }
+
+  setSelectedColor(targetGroup.color);
+  setSelectedColorGroup(targetGroup);
+  setSelectedSize(targetSize);
+  setSelectedVariant(targetVariant);
+}
+         else {
           setSelectedColor("");
           setSelectedColorGroup(null);
           setSelectedSize("");
@@ -524,18 +553,25 @@ const ProductDetail = () => {
           0
       ),
       item_data: {
-        image:
-          productImages[currentImageIndex] ||
-          productImages[0] ||
-          "",
-        name: product.name,
-        slug: product.slug,
-        brand: product.brand,
-        fabric: currentFabric,
-        material: currentMaterial,
-        sizes: availableSizes?.length ? availableSizes : [selectedSize || "Free Size"],
-        colors: colorGroups.map((g) => g.color),
-      },
+  image:
+    productImages[currentImageIndex] ||
+    productImages[0] ||
+    "",
+  name: product.name,
+  slug: product.slug,
+  brand: product.brand,
+  fabric: currentFabric,
+  material: currentMaterial,
+  sizes: availableSizes?.length ? availableSizes : [selectedSize || "Free Size"],
+  colors: colorGroups.map((g) => g.color),
+  variants: product.variants.map((v) => ({
+    id: v.id,
+    size: getOptionValue(v, "size") || v.size,
+    color: getOptionValue(v, "color") || v.color,
+    price: Number(v.price || 0),
+    offer_price: Number(v.offer_price || v.price || 0),
+  })),
+},
     };
 
     const success = await protectedAddToCart(productPayload);
@@ -571,18 +607,25 @@ const ProductDetail = () => {
           0
       ),
       item_data: {
-        image:
-          productImages[currentImageIndex] ||
-          productImages[0] ||
-          "",
-        name: product.name,
-        slug: product.slug,
-        brand: product.brand,
-        fabric: currentFabric,
-        material: currentMaterial,
-        sizes: availableSizes?.length ? availableSizes : [selectedSize || "Free Size"],
-        colors: colorGroups.map((g) => g.color),
-      },
+  image:
+    productImages[currentImageIndex] ||
+    productImages[0] ||
+    "",
+  name: product.name,
+  slug: product.slug,
+  brand: product.brand,
+  fabric: currentFabric,
+  material: currentMaterial,
+  sizes: availableSizes?.length ? availableSizes : [selectedSize || "Free Size"],
+  colors: colorGroups.map((g) => g.color),
+  variants: product.variants.map((v) => ({
+    id: v.id,
+    size: getOptionValue(v, "size") || v.size,
+    color: getOptionValue(v, "color") || v.color,
+    price: Number(v.price || 0),
+    offer_price: Number(v.offer_price || v.price || 0),
+  })),
+},
     };
 
     await protectedBuyNow(productPayload);

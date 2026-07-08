@@ -86,7 +86,7 @@ const About = () => {
               dangerouslySetInnerHTML={{ __html: aboutData.content }}
             />
             
-            <div className="flex items-center gap-3 pt-2">
+            {/* <div className="flex items-center gap-3 pt-2">
               <div className="flex -space-x-2">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-stone-200 overflow-hidden">
@@ -102,7 +102,7 @@ const About = () => {
                 </div>
                 <p className="text-xs text-stone-500">Trusted by 50,000+ customers</p>
               </div>
-            </div>
+            </div> */}
           </div>
           
           <div className="w-full lg:w-1/2">

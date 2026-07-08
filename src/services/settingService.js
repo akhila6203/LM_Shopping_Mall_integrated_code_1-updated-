@@ -1,5 +1,6 @@
 import axiosClient from "@/api/axiosClient";
 
+
 export const getPublicSettings = async () => {
   const res = await axiosClient.get("/settings/public");
   return res.data.data || {};
@@ -15,7 +16,10 @@ export const getStoreInformation = async () => {
   return res.data.data || {};
 };
 
-
+export const getStoreSettings = async () => {
+  const res = await axiosClient.get("/settings/public");
+  return res.data.data;
+};
 
 
 

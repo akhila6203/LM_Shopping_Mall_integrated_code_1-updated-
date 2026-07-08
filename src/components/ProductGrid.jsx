@@ -4,9 +4,10 @@ import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Link } from "react-router-dom";
 import { useShop } from "../ShopContext.jsx";
 import { useProtectedActions } from "@/hooks/useProtectedActions";
-import { getProducts } from "@/services/productService";
+// import { getProducts } from "@/services/productService";
 import { getImageUrl } from "@/api/axiosClient";
 import { extractProductSizes } from "@/utils/productHelpers";
+import { getProducts, getProductBySlug } from "@/services/productService";
 
 const ProductCard = ({ product, index, isVisible }) => {
   const { wishlist } = useShop();
@@ -41,31 +42,93 @@ const ProductCard = ({ product, index, isVisible }) => {
       ? "Featured"
       : null;
 
-  const handleAddToCartClick = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+      const handleAddToCartClick = async (e) => {
+  e.preventDefault();
+  e.stopPropagation();
 
-    const sizes = extractProductSizes(product);
+  let fullProduct = product;
 
-    await handleAddToCart({
-      product_id: product.id,
-      variant_id: null,
-      quantity: 1,
-      selected_size: sizes[0] || "Free Size",
-      selected_color: product.color || "",
-      item_price: Number(product.offer_price || product.price || 0),
-      item_data: {
-        image,
-        slug: product.slug,
-        name: product.name,
-        brand: product.brand || "",
-        fabric: product.fabric || "",
-        material: product.material || "",
-        sizes,
-        colors: product.colors || [],
-      },
-    });
-  };
+  if (product.slug) {
+    try {
+      fullProduct = await getProductBySlug(product.slug);
+    } catch (error) {
+      console.error("Full product fetch failed:", error);
+    }
+  }
+
+  const variants = fullProduct.variants || fullProduct.product_variants || [];
+
+  const sizes = [
+    ...new Set(
+      variants
+        .map((v) => v.size)
+        .filter(Boolean)
+    ),
+  ];
+
+  const colors = [
+    ...new Set(
+      variants
+        .map((v) => v.color)
+        .filter(Boolean)
+    ),
+  ];
+
+  const firstVariant = variants[0] || null;
+  const firstSize = sizes[0] || firstVariant?.size || "Free Size";
+
+  await handleAddToCart({
+    product_id: fullProduct.id || product.id,
+    variant_id: firstVariant?.id || null,
+    quantity: 1,
+    selected_size: firstSize,
+    selected_color: firstVariant?.color || fullProduct.color || "",
+    item_price: Number(
+      firstVariant?.offer_price ||
+        firstVariant?.price ||
+        fullProduct.offer_price ||
+        fullProduct.price ||
+        product.offer_price ||
+        product.price ||
+        0
+    ),
+    item_data: {
+      image,
+      slug: fullProduct.slug || product.slug,
+      name: fullProduct.name || product.name,
+      brand: fullProduct.brand || "",
+      fabric: fullProduct.fabric || "",
+      material: fullProduct.material || "",
+      sizes: sizes.length ? sizes : [firstSize],
+      colors,
+    },
+  });
+};
+  // const handleAddToCartClick = async (e) => {
+  //   e.preventDefault();
+  //   e.stopPropagation();
+
+  //   const sizes = extractProductSizes(product);
+
+  //   await handleAddToCart({
+  //     product_id: product.id,
+  //     variant_id: null,
+  //     quantity: 1,
+  //     selected_size: sizes[0] || "Free Size",
+  //     selected_color: product.color || "",
+  //     item_price: Number(product.offer_price || product.price || 0),
+  //     item_data: {
+  //       image,
+  //       slug: product.slug,
+  //       name: product.name,
+  //       brand: product.brand || "",
+  //       fabric: product.fabric || "",
+  //       material: product.material || "",
+  //       sizes,
+  //       colors: product.colors || [],
+  //     },
+  //   });
+  // };
 
   const handleWishlist = (e) => {
     e.preventDefault();
