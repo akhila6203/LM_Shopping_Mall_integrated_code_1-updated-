@@ -562,6 +562,11 @@ const cartSelection = location.state || {};
   brand: product.brand,
   fabric: currentFabric,
   material: currentMaterial,
+
+  gst_percent: Number(
+    product.gst_percent || 0
+  ),
+
   sizes: availableSizes?.length ? availableSizes : [selectedSize || "Free Size"],
   colors: colorGroups.map((g) => g.color),
   variants: product.variants.map((v) => ({
@@ -616,6 +621,11 @@ const cartSelection = location.state || {};
   brand: product.brand,
   fabric: currentFabric,
   material: currentMaterial,
+
+  gst_percent: Number(
+  product.gst_percent || 0
+),
+
   sizes: availableSizes?.length ? availableSizes : [selectedSize || "Free Size"],
   colors: colorGroups.map((g) => g.color),
   variants: product.variants.map((v) => ({
@@ -846,7 +856,14 @@ const cartSelection = location.state || {};
                   </>
                 )}
               </div>
-              <p className="text-xs text-stone-400 mt-2">Inclusive of all taxes • Free shipping</p>
+              {Number(product.gst_percent || 0) > 0 && (
+                <p className="text-xs text-stone-400 mt-2">
+                  Inclusive of {Number(
+                    product.gst_percent
+                  )}% GST
+                </p>
+              )}
+              {/* <p className="text-xs text-stone-400 mt-2">Inclusive of all taxes • Free shipping</p> */}
             </div>
 
             {colorGroups.length > 0 && (

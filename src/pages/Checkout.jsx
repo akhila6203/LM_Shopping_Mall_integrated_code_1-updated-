@@ -11,6 +11,17 @@ import { createPayment, verifyPayment } from "@/services/paymentService";
 import { createAddress, updateAddress, getAddresses } from "@/services/addressService";
 import { getCustomerProfile } from "@/services/customerAuthService";
 import { getImageUrl } from "@/api/axiosClient";
+import {
+  getPublicSettings,
+} from "@/services/settingService";
+import {
+  normalizeShippingSettings,
+  calculateShippingCharge,
+} from "@/utils/shippingHelpers";
+import {
+  calculateCartIncludedGst,
+} from "@/utils/gstHelpers";
+
 
 const mapAddressToForm = (addr, customerEmail = "") => {
   const nameParts = String(addr.full_name || "").trim().split(" ");
@@ -34,6 +45,23 @@ const Checkout = () => {
   const location = useLocation();
   const [saveInfo, setSaveInfo] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
+
+  const [shippingSettings, setShippingSettings] =
+  useState({
+    shipping_enabled: false,
+    shipping_charge: 0,
+    free_shipping_enabled: false,
+    free_shipping_above: 0,
+    shipping_label: "Standard Delivery",
+    estimated_delivery_days: "5-7 Days",
+  });
+
+const [shippingLoading, setShippingLoading] =
+  useState(true);
+
+  const [shippingError, setShippingError] =
+  useState("");
+
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
   const [couponCode, setCouponCode] = useState("");
@@ -56,13 +84,56 @@ const Checkout = () => {
     country: "India"
   });
 
+
   // Trust badges
-  const trustBadges = [
-    { icon: ShieldCheck, title: "Secure", desc: "256-bit SSL" },
-    { icon: Truck, title: "Free Shipping", desc: "Above ₹999" },
-    { icon: Clock, title: "Easy Returns", desc: "7-day policy" },
-    { icon: Award, title: "Authentic", desc: "100% genuine" }
-  ];
+    const shippingBadge = !shippingSettings.shipping_enabled
+  ? {
+      title: "Free Shipping",
+      desc: "On all orders",
+    }
+  : shippingSettings.free_shipping_enabled
+  ? {
+      title: "Free Shipping",
+      desc: `Above ₹${Number(
+        shippingSettings.free_shipping_above || 0
+      ).toLocaleString("en-IN")}`,
+    }
+  : {
+      title: shippingSettings.shipping_label ||
+        "Standard Delivery",
+      desc: `₹${Number(
+        shippingSettings.shipping_charge || 0
+      ).toLocaleString("en-IN")}`,
+    };
+
+    const trustBadges = [
+      {
+        icon: ShieldCheck,
+        title: "Secure",
+        desc: "256-bit SSL",
+      },
+      {
+        icon: Truck,
+        title: shippingBadge.title,
+        desc: shippingBadge.desc,
+      },
+      {
+        icon: Clock,
+        title: "Easy Returns",
+        desc: "7-day policy",
+      },
+      {
+        icon: Award,
+        title: "Authentic",
+        desc: "100% genuine",
+      },
+    ];
+  // const trustBadges = [
+  //   { icon: ShieldCheck, title: "Secure", desc: "256-bit SSL" },
+  //   { icon: Truck, title: "Free Shipping", desc: "Above ₹999" },
+  //   { icon: Clock, title: "Easy Returns", desc: "7-day policy" },
+  //   { icon: Award, title: "Authentic", desc: "100% genuine" }
+  // ];
 
   // Price Calculation Logic
   const getNumericPrice = (priceVal) => {
@@ -81,8 +152,49 @@ const Checkout = () => {
     (sum, item) => sum + Number(item.qty || item.quantity || 1),
     0
   );
-  const shipping = subtotal > 999 || subtotal === 0 ? 0 : 99;
-  const total = Math.max(0, subtotal + shipping - discount);
+  // const shipping = subtotal > 999 || subtotal === 0 ? 0 : 99;
+  // const total = Math.max(0, subtotal + shipping - discount);
+//   const getShippingCharge = () => {
+//   if (!shippingSettings.shipping_enabled) {
+//     return 0;
+//   }
+
+//   if (
+//     shippingSettings.free_shipping_enabled &&
+//     shippingSettings.free_shipping_above > 0 &&
+//     subtotal >=
+//       shippingSettings.free_shipping_above
+//   ) {
+//     return 0;
+//   }
+
+//   return Number(
+//     shippingSettings.shipping_charge || 0
+//   );
+// };
+
+// const shipping = getShippingCharge();
+const shipping =
+  calculateShippingCharge(
+    subtotal,
+    shippingSettings
+  );
+
+  const gstAmount =
+  calculateCartIncludedGst({
+    cart,
+    subtotal,
+    discount,
+  });
+const total = Math.max(
+  0,
+  subtotal + shipping - discount
+);
+
+// const total = Math.max(
+//   0,
+//   subtotal + shipping - discount
+// );
 
   useEffect(() => {
     fetchCart();
@@ -146,6 +258,104 @@ const Checkout = () => {
 
     loadProfileAndAddresses();
   }, [customer]);
+
+
+  useEffect(() => {
+  const loadShippingSettings =
+    async () => {
+      try {
+        setShippingLoading(true);
+        setShippingError("");
+
+        const publicSettings =
+          await getPublicSettings();
+
+        setShippingSettings(
+          normalizeShippingSettings(
+            publicSettings?.shipping || {}
+          )
+        );
+      } catch (error) {
+        console.error(
+          "Shipping settings fetch error:",
+          error
+        );
+
+        setShippingError(
+          "Unable to load delivery charges. Please try again."
+        );
+      } finally {
+        setShippingLoading(false);
+      }
+    };
+
+  loadShippingSettings();
+}, []);
+//   useEffect(() => {
+//   const loadShippingSettings = async () => {
+//     try {
+//       setShippingLoading(true);
+
+//       const publicSettings =
+//         await getPublicSettings();
+
+//       const serverShipping =
+//         publicSettings?.shipping || {};
+
+//       setShippingSettings({
+//         shipping_enabled:
+//           serverShipping.shipping_enabled === true ||
+//           serverShipping.shipping_enabled === 1 ||
+//           serverShipping.shipping_enabled === "1" ||
+//           serverShipping.shipping_enabled === "true",
+
+//         shipping_charge: Number(
+//           serverShipping.shipping_charge || 0
+//         ),
+
+//         free_shipping_enabled:
+//           serverShipping.free_shipping_enabled === true ||
+//           serverShipping.free_shipping_enabled === 1 ||
+//           serverShipping.free_shipping_enabled === "1" ||
+//           serverShipping.free_shipping_enabled === "true",
+
+//         free_shipping_above: Number(
+//           serverShipping.free_shipping_above || 0
+//         ),
+
+//         shipping_label:
+//           serverShipping.shipping_label ||
+//           "Standard Delivery",
+
+//         estimated_delivery_days:
+//           serverShipping.estimated_delivery_days ||
+//           "5-7 Days",
+//       });
+//     } catch (error) {
+//       console.error(
+//         "Shipping settings fetch error:",
+//         error
+//       );
+
+//       /*
+//        * Settings fetch fail ayithe safe fallback:
+//        * free shipping.
+//        */
+//       setShippingSettings({
+//         shipping_enabled: false,
+//         shipping_charge: 0,
+//         free_shipping_enabled: false,
+//         free_shipping_above: 0,
+//         shipping_label: "Standard Delivery",
+//         estimated_delivery_days: "5-7 Days",
+//       });
+//     } finally {
+//       setShippingLoading(false);
+//     }
+//   };
+
+//   loadShippingSettings();
+// }, []);
 
   // Generate estimated delivery date
   useEffect(() => {
@@ -258,6 +468,7 @@ const Checkout = () => {
     subtotal,
     shipping_charge: shipping,
     tax_amount: taxAmount,
+    gst_amount: gstAmount,
     total_amount: total,
   });
 
@@ -282,6 +493,18 @@ const Checkout = () => {
       return;
     }
 
+     // Add here
+  if (shippingLoading) {
+    alert(
+      "Please wait while delivery charges are loading."
+    );
+    return;
+  }
+
+  if (shippingError) {
+    alert(shippingError);
+    return;
+  }
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
@@ -831,8 +1054,26 @@ const Checkout = () => {
                     <span>-₹{discount.toLocaleString("en-IN")}</span>
                   </div>
                 )}
+
+                                  {gstAmount > 0 && (
+  <div className="flex justify-between text-stone-600">
+    <span>GST Included</span>
+
+    <span>
+      ₹
+      {gstAmount.toLocaleString(
+        "en-IN",
+        {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }
+      )}
+    </span>
+  </div>
+)}
                 <div className="flex justify-between text-stone-600">
                   <span>Shipping</span>
+
                   {shipping === 0 ? (
                     <span className="text-green-600 font-medium flex items-center gap-1">
                       <Truck className="w-3 h-3" /> Free
@@ -857,14 +1098,38 @@ const Checkout = () => {
               </div>
 
               {/* Submit Button */}
-              <button 
+              <button
+  form="checkout-form"
+  type="submit"
+  disabled={
+    placingOrder ||
+    shippingLoading ||
+    Boolean(shippingError) ||
+    cart.length === 0
+  }
+  className="w-full py-4 rounded-xl font-body text-sm font-bold uppercase tracking-widest transition-all bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+>
+  {shippingLoading
+    ? "Checking Shipping..."
+    : placingOrder
+    ? "Processing Payment..."
+    : shippingError
+    ? "Shipping Unavailable"
+    : `Pay ₹${total.toLocaleString("en-IN")}`}
+  {!shippingLoading &&
+    !placingOrder &&
+    !shippingError && (
+      <ShieldCheck className="w-5 h-5" />
+    )}
+</button>
+              {/* <button 
                 form="checkout-form"
                 type="submit"
                 disabled={placingOrder || cart.length === 0}
                 className="w-full bg-primary text-white py-4 rounded-xl font-body text-sm font-bold uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {placingOrder ? "Processing Payment..." : `Pay ₹${total.toLocaleString("en-IN")}`} <ShieldCheck className="w-5 h-5" />
-              </button>
+              </button> */}
 
               <p className="text-[10px] text-stone-400 text-center mt-4">
                 By placing your order, you agree to our Terms & Conditions and Privacy Policy.
@@ -881,16 +1146,18 @@ const Checkout = () => {
 export default Checkout;
 
 
+
+
 // import React, { useState, useEffect } from "react";
 // import { Link, useNavigate, useLocation } from "react-router-dom";
 // import { 
-//   ChevronLeft, ShieldCheck, CheckCircle2, Banknote, CreditCard, Smartphone,
+//   ChevronLeft, ShieldCheck, CheckCircle2, CreditCard, Smartphone,
 //   Truck, Clock, Award, Sparkles, MapPin, Phone, Mail, User, Home, Building,
 //   Tag, Percent, Gift, ArrowRight, AlertCircle, Calendar, Package
 // } from "lucide-react";
 // import { useShop } from "../ShopContext.jsx";
 // import { validateCoupon } from "@/services/couponService";
-// import { checkoutOrder } from "@/services/orderService";
+// import { createPayment, verifyPayment } from "@/services/paymentService";
 // import { createAddress, updateAddress, getAddresses } from "@/services/addressService";
 // import { getCustomerProfile } from "@/services/customerAuthService";
 // import { getImageUrl } from "@/api/axiosClient";
@@ -915,7 +1182,6 @@ export default Checkout;
 //   const { cart, clearCart, fetchCart, customer } = useShop();
 //   const navigate = useNavigate();
 //   const location = useLocation();
-//   const [paymentMethod, setPaymentMethod] = useState("cod");
 //   const [saveInfo, setSaveInfo] = useState(false);
 //   const [placingOrder, setPlacingOrder] = useState(false);
 //   const [savedAddresses, setSavedAddresses] = useState([]);
@@ -1108,6 +1374,43 @@ export default Checkout;
 //     }
 //   };
 
+//   const loadRazorpayScript = () =>
+//     new Promise((resolve) => {
+//       if (window.Razorpay) {
+//         resolve(true);
+//         return;
+//       }
+//       const script = document.createElement("script");
+//       script.src = "https://checkout.razorpay.com/v1/checkout.js";
+//       script.onload = () => resolve(true);
+//       script.onerror = () => resolve(false);
+//       document.body.appendChild(script);
+//     });
+
+//   const buildCheckoutPayload = (shippingName, shippingAddress, taxAmount) => ({
+//     shipping_name: shippingName,
+//     shipping_phone: formData.phone,
+//     shipping_address: shippingAddress,
+//     shipping_city: formData.city,
+//     shipping_state: formData.state,
+//     shipping_pincode: formData.pincode,
+//     shipping_country: formData.country || "India",
+//     billing_name: shippingName,
+//     billing_phone: formData.phone,
+//     billing_address: shippingAddress,
+//     billing_city: formData.city,
+//     billing_state: formData.state,
+//     billing_pincode: formData.pincode,
+//     billing_country: formData.country || "India",
+//     coupon_id: appliedCoupon?.coupon_id || null,
+//     coupon_code: appliedCoupon?.coupon_code || (couponApplied ? couponCode.trim().toUpperCase() : null),
+//     discount_amount: discount,
+//     subtotal,
+//     shipping_charge: shipping,
+//     tax_amount: taxAmount,
+//     total_amount: total,
+//   });
+
 //   const buildAddressPayload = () => ({
 //     address_type: "shipping",
 //     full_name: `${formData.firstName} ${formData.lastName}`.trim(),
@@ -1155,44 +1458,79 @@ export default Checkout;
 //         setSavedAddresses(refreshed);
 //       }
 
-//       const result = await checkoutOrder({
-//         shipping_name: shippingName,
-//         shipping_phone: formData.phone,
-//         shipping_address: shippingAddress,
-//         shipping_city: formData.city,
-//         shipping_state: formData.state,
-//         shipping_pincode: formData.pincode,
-//         shipping_country: formData.country || "India",
-//         billing_name: shippingName,
-//         billing_phone: formData.phone,
-//         billing_address: shippingAddress,
-//         billing_city: formData.city,
-//         billing_state: formData.state,
-//         billing_pincode: formData.pincode,
-//         billing_country: formData.country || "India",
-//         payment_method: paymentMethod,
-//         coupon_id: appliedCoupon?.coupon_id || null,
-//         coupon_code: appliedCoupon?.coupon_code || (couponApplied ? couponCode.trim().toUpperCase() : null),
-//         discount_amount: discount,
-//         subtotal,
-//         shipping_charge: shipping,
-//         tax_amount: taxAmount,
-//         total_amount: total,
+//       const checkoutPayload = buildCheckoutPayload(shippingName, shippingAddress, taxAmount);
+
+//       const paymentOrder = await createPayment({
+//         amount: total,
+//         currency: "INR",
+//         ...checkoutPayload,
 //       });
 
-//       await clearCart();
+//       const scriptLoaded = await loadRazorpayScript();
+//       if (!scriptLoaded || !window.Razorpay) {
+//         throw new Error("Failed to load payment gateway. Please try again.");
+//       }
 
-//       navigate("/order-success", {
-//         replace: true,
-//         state: {
-//           order: result.order,
-//           items: result.items,
-//           orderId: result.order?.id,
-//         },
+//       await new Promise((resolve, reject) => {
+//         const options = {
+//           key: paymentOrder.key_id,
+//           amount: paymentOrder.amount,
+//           currency: paymentOrder.currency || "INR",
+//           name: "LM Showroom",
+//           description: "Order Payment",
+//           order_id: paymentOrder.razorpay_order_id,
+//           prefill: {
+//             name: shippingName,
+//             email: formData.email,
+//             contact: formData.phone,
+//           },
+//           theme: { color: "#8B5E3C" },
+//           handler: async (response) => {
+//             try {
+//               const result = await verifyPayment({
+//                 razorpay_payment_id: response.razorpay_payment_id,
+//                 razorpay_order_id: response.razorpay_order_id,
+//                 razorpay_signature: response.razorpay_signature,
+//                 ...checkoutPayload,
+//               });
+
+//               await clearCart();
+
+//               navigate("/order-success", {
+//                 replace: true,
+//                 state: {
+//                   order: result.order,
+//                   items: result.items,
+//                   orderId: result.order?.id,
+//                 },
+//               });
+//               resolve();
+//             } catch (verifyError) {
+//               reject(verifyError);
+//             }
+//           },
+//           modal: {
+//             ondismiss: () => {
+//               reject(new Error("Payment cancelled"));
+//             },
+//           },
+//         };
+
+//         const razorpay = new window.Razorpay(options);
+//         razorpay.on("payment.failed", (response) => {
+//           reject(new Error(response.error?.description || "Payment failed"));
+//         });
+//         razorpay.open();
 //       });
 //     } catch (error) {
 //       console.error("Checkout error:", error);
-//       alert(error.response?.data?.message || "Failed to place order. Please try again.");
+//       const message =
+//         error.response?.data?.message ||
+//         error.message ||
+//         "Failed to process payment. Please try again.";
+//       if (message !== "Payment cancelled") {
+//         alert(message);
+//       }
 //     } finally {
 //       setPlacingOrder(false);
 //     }
@@ -1524,67 +1862,26 @@ export default Checkout;
 //                   Payment Method
 //                 </h3>
 //                 <div className="space-y-3">
-                  
-//                   <label className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${
-//                     paymentMethod === 'cod' 
-//                       ? 'border-primary bg-primary/5 shadow-md' 
-//                       : 'border-stone-200 hover:border-primary/50'
-//                   }`}>
-//                     <input 
-//                       type="radio" 
-//                       name="payment" 
-//                       value="cod" 
-//                       checked={paymentMethod === 'cod'} 
-//                       onChange={() => setPaymentMethod('cod')} 
-//                       className="w-4 h-4 text-primary accent-primary" 
-//                     />
-//                     <div className={`p-2 rounded-full ${paymentMethod === 'cod' ? 'bg-primary/10' : 'bg-stone-100'}`}>
-//                       <Banknote className={`w-5 h-5 ${paymentMethod === 'cod' ? 'text-primary' : 'text-stone-500'}`} />
+//                   <div className="flex items-center gap-3 p-4 border-2 rounded-xl border-primary bg-primary/5 shadow-md">
+//                     <div className="p-2 rounded-full bg-primary/10">
+//                       <CreditCard className="w-5 h-5 text-primary" />
 //                     </div>
 //                     <div className="flex-1">
-//                       <span className="font-medium text-sm">Cash on Delivery (COD)</span>
-//                       <p className="text-xs text-stone-500">Pay when you receive your order</p>
+//                       <span className="font-medium text-sm">UPI / Card / NetBanking</span>
+//                       <p className="text-xs text-stone-500">
+//                         Pay using GPay, PhonePe, Paytm, Visa, Mastercard, Debit/Credit Card
+//                       </p>
 //                     </div>
-//                     {paymentMethod === 'cod' && (
-//                       <CheckCircle2 className="w-5 h-5 text-primary" />
-//                     )}
-//                   </label>
-
-//                   <label className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${
-//                     paymentMethod === 'online' 
-//                       ? 'border-primary bg-primary/5 shadow-md' 
-//                       : 'border-stone-200 hover:border-primary/50'
-//                   }`}>
-//                     <input 
-//                       type="radio" 
-//                       name="payment" 
-//                       value="online" 
-//                       checked={paymentMethod === 'online'} 
-//                       onChange={() => setPaymentMethod('online')} 
-//                       className="w-4 h-4 text-primary accent-primary" 
-//                     />
-//                     <div className={`p-2 rounded-full ${paymentMethod === 'online' ? 'bg-primary/10' : 'bg-stone-100'}`}>
-//                       <CreditCard className={`w-5 h-5 ${paymentMethod === 'online' ? 'text-primary' : 'text-stone-500'}`} />
-//                     </div>
-//                     <div className="flex-1">
-//                       <span className="font-medium text-sm">Credit Card / UPI / NetBanking</span>
-//                       <p className="text-xs text-stone-500">All major payment methods accepted</p>
-//                     </div>
-//                     {paymentMethod === 'online' && (
-//                       <CheckCircle2 className="w-5 h-5 text-primary" />
-//                     )}
-//                   </label>
-
+//                     <CheckCircle2 className="w-5 h-5 text-primary" />
+//                   </div>
 //                 </div>
 
-//                 {paymentMethod === 'online' && (
-//                   <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-//                     <p className="text-xs text-blue-700 flex items-center gap-2">
-//                       <Smartphone className="w-4 h-4" />
-//                       You will be redirected to our secure payment gateway after placing the order.
-//                     </p>
-//                   </div>
-//                 )}
+//                 <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+//                   <p className="text-xs text-blue-700 flex items-center gap-2">
+//                     <Smartphone className="w-4 h-4" />
+//                     You will be redirected to our secure payment gateway to complete payment.
+//                   </p>
+//                 </div>
 //               </div>
 
 //             </form>
@@ -1716,7 +2013,7 @@ export default Checkout;
 //                 disabled={placingOrder || cart.length === 0}
 //                 className="w-full bg-primary text-white py-4 rounded-xl font-body text-sm font-bold uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
 //               >
-//                 {placingOrder ? "Placing Order..." : "Complete Order"} <ShieldCheck className="w-5 h-5" />
+//                 {placingOrder ? "Processing Payment..." : `Pay ₹${total.toLocaleString("en-IN")}`} <ShieldCheck className="w-5 h-5" />
 //               </button>
 
 //               <p className="text-[10px] text-stone-400 text-center mt-4">
@@ -1732,3 +2029,5 @@ export default Checkout;
 // };
 
 // export default Checkout;
+
+

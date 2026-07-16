@@ -8,6 +8,13 @@ import { useShop } from "../ShopContext.jsx";
 import { validateCoupon } from "@/services/couponService";
 import { getImageUrl } from "@/api/axiosClient";
 import { getStoreSettings } from "@/services/settingService";
+import {
+  normalizeShippingSettings,
+  calculateShippingCharge,
+} from "@/utils/shippingHelpers";
+import {
+  calculateCartIncludedGst,
+} from "@/utils/gstHelpers";
 
 const Cart = () => {
   const navigate = useNavigate();
@@ -30,6 +37,10 @@ const Cart = () => {
   const [couponMessage, setCouponMessage] = useState("");
   const [storeSettings, setStoreSettings] = useState({});
 
+  const [shippingLoading, setShippingLoading] = useState(true);
+  const [shippingError, setShippingError] =
+  useState("");
+
   const getNumericPrice = (priceVal) => {
     if (typeof priceVal === "number") return priceVal;
     if (!priceVal) return 0;
@@ -37,36 +48,46 @@ const Cart = () => {
     return Number(cleanString) || 0;
   };
 
+
 //   useEffect(() => {
 //   const fetchSettings = async () => {
 //     try {
 //       const data = await getStoreSettings();
-
-//       console.log("Store Settings:", data);
-
 //       setStoreSettings(data || {});
-//     } catch (err) {
-//       console.error(err);
+//     } catch (error) {
+//       console.error("Shipping settings fetch error:", error);
 //     }
 //   };
 
 //   fetchSettings();
 // }, []);
-  useEffect(() => {
+useEffect(() => {
   const fetchSettings = async () => {
     try {
-      const data = await getStoreSettings();
+      setShippingLoading(true);
+      setShippingError("");
+
+      const data =
+        await getStoreSettings();
+
       setStoreSettings(data || {});
     } catch (error) {
-      console.error("Shipping settings fetch error:", error);
+      console.error(
+        "Shipping settings fetch error:",
+        error
+      );
+
+      setShippingError(
+        "Unable to load delivery charges"
+      );
+    } finally {
+      setShippingLoading(false);
     }
   };
 
   fetchSettings();
 }, []);
-  // useEffect(() => {
-  //   fetchCart();
-  // }, [fetchCart]);
+
 
   const totalQuantity = useMemo(
     () => cart.reduce((sum, item) => sum + Number(item.qty || item.quantity || 1), 0),
@@ -84,35 +105,71 @@ const Cart = () => {
 
   // const shipping = subtotal > 999 || subtotal === 0 ? 0 : 99;
   // const shipping = 0;
-  const shippingSettings = storeSettings?.shipping || {};
+//   const shippingSettings = storeSettings?.shipping || {};
 
-const shipping = useMemo(() => {
-  if (cart.length === 0 || subtotal === 0) return 0;
+// const shipping = useMemo(() => {
+//   if (cart.length === 0 || subtotal === 0) return 0;
 
-  const shippingEnabled =
-    shippingSettings.shipping_enabled === true ||
-    shippingSettings.shipping_enabled === "true" ||
-    shippingSettings.shipping_enabled === 1 ||
-    shippingSettings.shipping_enabled === "1";
+  // const shippingEnabled =
+  //   shippingSettings.shipping_enabled === true ||
+  //   shippingSettings.shipping_enabled === "true" ||
+  //   shippingSettings.shipping_enabled === 1 ||
+  //   shippingSettings.shipping_enabled === "1";
 
-  const freeShippingEnabled =
-    shippingSettings.free_shipping_enabled === true ||
-    shippingSettings.free_shipping_enabled === "true" ||
-    shippingSettings.free_shipping_enabled === 1 ||
-    shippingSettings.free_shipping_enabled === "1";
+  // const freeShippingEnabled =
+  //   shippingSettings.free_shipping_enabled === true ||
+  //   shippingSettings.free_shipping_enabled === "true" ||
+  //   shippingSettings.free_shipping_enabled === 1 ||
+  //   shippingSettings.free_shipping_enabled === "1";
 
-  const shippingCharge = Number(shippingSettings.shipping_charge || 0);
-  const freeAbove = Number(shippingSettings.free_shipping_above || 0);
+  // const shippingCharge = Number(shippingSettings.shipping_charge || 0);
+  // const freeAbove = Number(shippingSettings.free_shipping_above || 0);
 
-  if (!shippingEnabled) return 0;
+  // if (!shippingEnabled) return 0;
 
-  if (freeShippingEnabled && freeAbove > 0 && subtotal >= freeAbove) {
-    return 0;
-  }
+  // if (freeShippingEnabled && freeAbove > 0 && subtotal >= freeAbove) {
+  //   return 0;
+  // }
 
-  return shippingCharge;
-}, [cart.length, subtotal, shippingSettings]);
-  const total = Math.max(0, subtotal + shipping - discount);
+//   return shippingCharge;
+// }, [cart.length, subtotal, shippingSettings]);
+
+const shippingSettings = useMemo(
+  () =>
+    normalizeShippingSettings(
+      storeSettings?.shipping || {}
+    ),
+  [storeSettings]
+);
+
+const shipping = useMemo(
+  () =>
+    calculateShippingCharge(
+      subtotal,
+      shippingSettings
+    ),
+  [subtotal, shippingSettings]
+);
+
+const gstAmount = useMemo(
+  () =>
+    calculateCartIncludedGst({
+      cart,
+      subtotal,
+      discount,
+    }),
+  [
+    cart,
+    subtotal,
+    discount,
+  ]
+);
+const total = Math.max(
+  0,
+  subtotal + shipping - discount
+);
+
+  // const total = Math.max(0, subtotal + shipping - discount);
 
   const resetCoupon = () => {
     setCouponApplied(false);
@@ -188,49 +245,92 @@ const shipping = useMemo(() => {
   };
 
   const goCheckout = () => {
-    if (cart.length === 0) {
-      alert("Please add some products to your cart first!");
-      return;
-    }
+  if (cart.length === 0) {
+    alert(
+      "Please add some products to your cart first!"
+    );
+    return;
+  }
 
-    navigate("/checkout", {
-  state: {
-    coupon_id: appliedCoupon?.coupon_id || null,
-    coupon_code: couponApplied
-      ? appliedCoupon?.coupon_code || couponCode.trim().toUpperCase()
-      : "",
-    coupon_type: appliedCoupon?.coupon_type || "",
-    coupon_value: appliedCoupon?.coupon_value || 0,
-    discount_amount: discount,
-    coupon_message: couponMessage,
+  if (
+    shippingLoading ||
+    shippingError
+  ) {
+    alert(
+      shippingError ||
+        "Please wait while delivery charges are loading."
+    );
+    return;
+  }
 
-    subtotal,
-    shipping,
-    total,
+  navigate("/checkout", {
+    state: {
+      coupon_id:
+        appliedCoupon?.coupon_id || null,
 
-    shipping_label:
-      shippingSettings.shipping_label || "Standard Delivery",
+      coupon_code: couponApplied
+        ? appliedCoupon?.coupon_code ||
+          couponCode
+            .trim()
+            .toUpperCase()
+        : "",
 
-    estimated_delivery_days:
-      shippingSettings.estimated_delivery_days || "",
+      coupon_type:
+        appliedCoupon?.coupon_type || "",
 
-    shipping_settings: shippingSettings,
-  },
-});
-    // navigate("/checkout", {
-    //   state: {
-    //     coupon_id: appliedCoupon?.coupon_id || null,
-    //     coupon_code: couponApplied ? appliedCoupon?.coupon_code || couponCode.trim().toUpperCase() : "",
-    //     coupon_type: appliedCoupon?.coupon_type || "",
-    //     coupon_value: appliedCoupon?.coupon_value || 0,
-    //     discount_amount: discount,
-    //     coupon_message: couponMessage,
-    //     subtotal,
-    //     shipping,
-    //     total,
-    //   },
-    // });
-  };
+      coupon_value:
+        appliedCoupon?.coupon_value || 0,
+
+      discount_amount: discount,
+      coupon_message: couponMessage,
+
+      // UI convenience only.
+      // Backend final values malli calculate chesthundi.
+      subtotal,
+      shipping,
+      total,
+
+      shipping_label:
+        shippingSettings.shipping_label,
+
+      estimated_delivery_days:
+        shippingSettings
+          .estimated_delivery_days,
+    },
+  });
+};
+//   const goCheckout = () => {
+//     if (cart.length === 0) {
+//       alert("Please add some products to your cart first!");
+//       return;
+//     }
+
+//     navigate("/checkout", {
+//   state: {
+//     coupon_id: appliedCoupon?.coupon_id || null,
+//     coupon_code: couponApplied
+//       ? appliedCoupon?.coupon_code || couponCode.trim().toUpperCase()
+//       : "",
+//     coupon_type: appliedCoupon?.coupon_type || "",
+//     coupon_value: appliedCoupon?.coupon_value || 0,
+//     discount_amount: discount,
+//     coupon_message: couponMessage,
+
+//     subtotal,
+//     shipping,
+//     total,
+
+//     shipping_label:
+//       shippingSettings.shipping_label || "Standard Delivery",
+
+//     estimated_delivery_days:
+//       shippingSettings.estimated_delivery_days || "",
+
+//     shipping_settings: shippingSettings,
+//   },
+// });
+  
+//   };
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-b from-stone-50 via-white to-stone-50">
@@ -267,13 +367,29 @@ const shipping = useMemo(() => {
     <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-4">
       <div className="flex items-center gap-2">
         <Truck className="w-5 h-5 text-green-600" />
+      
         {/* <span className="text-sm font-semibold text-green-600">
-          🎉 Free Shipping on all orders
-        </span> */}
-        <span className="text-sm font-semibold text-green-600">
           {shipping === 0
             ? ` ${shippingSettings.shipping_label || "Free Shipping"}`
             : `${shippingSettings.shipping_label || "Standard Delivery"} · ₹${shipping}`}
+        </span> */}
+        <span
+          className={`text-sm font-semibold ${
+            shipping === 0
+              ? "text-green-600"
+              : "text-stone-700"
+          }`}
+        >
+          {shippingLoading
+            ? "Checking delivery charges..."
+            : shipping === 0
+            ? "Free Shipping"
+            : `${
+                shippingSettings.shipping_label ||
+                "Standard Delivery"
+              } · ₹${shipping.toLocaleString(
+                "en-IN"
+              )}`}
         </span>
 
       </div>
@@ -588,7 +704,7 @@ const shipping = useMemo(() => {
                   </div>
                 )}
 
-                <div className="flex justify-between text-stone-600">
+                {/* <div className="flex justify-between text-stone-600">
                   <span>Shipping</span>
 
                   {cart.length === 0 ? (
@@ -600,13 +716,49 @@ const shipping = useMemo(() => {
                   ) : (
                     <span>₹{shipping}</span>
                   )}
-                </div>
-                {/* {shippingSettings.estimated_delivery_days && cart.length > 0 && (
+                </div> */}
+                  {gstAmount > 0 && (
   <div className="flex justify-between text-stone-600">
-    <span>Estimated Delivery</span>
-    <span>{shippingSettings.estimated_delivery_days}</span>
+    <span>GST Included</span>
+
+    <span>
+      ₹
+      {gstAmount.toLocaleString(
+        "en-IN",
+        {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }
+      )}
+    </span>
   </div>
-)} */}
+)}
+                <div className="flex justify-between text-stone-600">
+  <span>Shipping</span>
+
+  {cart.length === 0 ? (
+    <span className="text-stone-400">
+      —
+    </span>
+  ) : shippingLoading ? (
+    <span className="text-stone-400">
+      Checking...
+    </span>
+  ) : shipping === 0 ? (
+    <span className="text-green-600 font-medium flex items-center gap-1">
+      <Truck className="w-3 h-3" />
+      Free
+    </span>
+  ) : (
+    <span>
+      ₹
+      {shipping.toLocaleString(
+        "en-IN"
+      )}
+    </span>
+  )}
+</div>
+
               </div>
 
               <div className="flex justify-between items-center mb-6">
@@ -616,13 +768,45 @@ const shipping = useMemo(() => {
                 </span>
               </div>
 
-              <button
-                onClick={goCheckout}
-                disabled={cart.length === 0}
-                className="w-full py-4 rounded-xl font-body text-sm font-bold uppercase tracking-widest transition-all bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                Proceed to Checkout <ArrowRight className="w-4 h-4" />
-              </button>
+              
+              {/* <button
+  onClick={goCheckout}
+  disabled={
+    cart.length === 0 ||
+    shippingLoading
+  }
+  className="w-full py-4 rounded-xl font-body text-sm font-bold uppercase tracking-widest transition-all bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+>
+  {shippingLoading
+    ? "Checking Shipping..."
+    : (
+      <>
+        Proceed to Checkout
+        <ArrowRight className="w-4 h-4" />
+      </>
+    )}
+</button> */}
+
+<button
+  onClick={goCheckout}
+  disabled={
+    cart.length === 0 ||
+    shippingLoading ||
+    Boolean(shippingError)
+  }
+  className="w-full py-4 rounded-xl font-body text-sm font-bold uppercase tracking-widest transition-all bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+>
+  {shippingLoading
+    ? "Checking Shipping..."
+    : shippingError
+    ? "Shipping Unavailable"
+    : (
+      <>
+        Proceed to Checkout
+        <ArrowRight className="w-4 h-4" />
+      </>
+    )}
+</button>
 
               <div className="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-stone-100">
                 {[
@@ -656,41 +840,38 @@ const shipping = useMemo(() => {
 export default Cart;
 
 
-// import React, { useState } from "react";
+
+// import React, { useEffect, useMemo, useState } from "react";
 // import { Link, useNavigate } from "react-router-dom";
 // import {
-//   Trash2,
-//   ShoppingCart,
-//   Heart,
-//   ArrowRight,
-//   ChevronLeft,
-//   Truck,
-//   Shield,
-//   Award,
-//   Sparkles,
-//   Percent,
-//   Minus,
-//   Plus,
+//   Trash2, ShoppingCart, Heart, ArrowRight, ChevronLeft, Truck,
+//   Shield, Award, Sparkles, Percent, Minus, Plus,
 // } from "lucide-react";
 // import { useShop } from "../ShopContext.jsx";
-// import axiosClient from "@/api/axiosClient";
+// import { validateCoupon } from "@/services/couponService";
+// import { getImageUrl } from "@/api/axiosClient";
+// import { getStoreSettings } from "@/services/settingService";
 
 // const Cart = () => {
+//   const navigate = useNavigate();
 //   const {
 //     cart,
-//     removeFromCart,
-//     updateQuantity,
-//     updateSize,
-//     clearCart,
+//     cartLoading,
+//     // fetchCart,
+//     removeFromCart: removeCartItem,
+//     updateQuantity: updateCartQuantity,
+//     updateSize: updateCartSize,
+//     clearCart: clearCartItems,
 //     wishlist,
 //     toggleWishlist,
 //   } = useShop();
 
-//   const navigate = useNavigate();
 //   const [couponCode, setCouponCode] = useState("");
 //   const [couponApplied, setCouponApplied] = useState(false);
+//   const [appliedCoupon, setAppliedCoupon] = useState(null);
 //   const [discount, setDiscount] = useState(0);
 //   const [couponMessage, setCouponMessage] = useState("");
+//   const [storeSettings, setStoreSettings] = useState({});
 
 //   const getNumericPrice = (priceVal) => {
 //     if (typeof priceVal === "number") return priceVal;
@@ -699,31 +880,131 @@ export default Cart;
 //     return Number(cleanString) || 0;
 //   };
 
-//   const totalQuantity = cart.reduce(
-//     (sum, item) => sum + Number(item.qty || 1),
-//     0
-//   );
+// //   useEffect(() => {
+// //   const fetchSettings = async () => {
+// //     try {
+// //       const data = await getStoreSettings();
 
-//   const subtotal = cart.reduce(
-//     (sum, item) =>
-//       sum + getNumericPrice(item.price) * Number(item.qty || 1),
-//     0
-//   );
+// //       console.log("Store Settings:", data);
 
-//   const shipping = subtotal > 999 || subtotal === 0 ? 0 : 99;
-//   const total = Math.max(0, subtotal + shipping - discount);
+// //       setStoreSettings(data || {});
+// //     } catch (err) {
+// //       console.error(err);
+// //     }
+// //   };
 
-//   // const getCartKey = (item) => item.cartItemId || item.id;
-//   const getCartKey = (item) => item.cartItemId || item.cart_id;
-
-//   const handleDecreaseQty = (item) => {
-//     const qty = Number(item.qty || 1);
-//     updateQuantity(getCartKey(item), Math.max(1, qty - 1));
+// //   fetchSettings();
+// // }, []);
+//   useEffect(() => {
+//   const fetchSettings = async () => {
+//     try {
+//       const data = await getStoreSettings();
+//       setStoreSettings(data || {});
+//     } catch (error) {
+//       console.error("Shipping settings fetch error:", error);
+//     }
 //   };
 
-//   const handleIncreaseQty = (item) => {
-//     const qty = Number(item.qty || 1);
-//     updateQuantity(getCartKey(item), qty + 1);
+//   fetchSettings();
+// }, []);
+//   // useEffect(() => {
+//   //   fetchCart();
+//   // }, [fetchCart]);
+
+//   const totalQuantity = useMemo(
+//     () => cart.reduce((sum, item) => sum + Number(item.qty || item.quantity || 1), 0),
+//     [cart]
+//   );
+
+//   const subtotal = useMemo(
+//     () =>
+//       cart.reduce(
+//         (sum, item) => sum + getNumericPrice(item.price) * Number(item.qty || 1),
+//         0
+//       ),
+//     [cart]
+//   );
+
+//   // const shipping = subtotal > 999 || subtotal === 0 ? 0 : 99;
+//   // const shipping = 0;
+//   const shippingSettings = storeSettings?.shipping || {};
+
+// const shipping = useMemo(() => {
+//   if (cart.length === 0 || subtotal === 0) return 0;
+
+//   const shippingEnabled =
+//     shippingSettings.shipping_enabled === true ||
+//     shippingSettings.shipping_enabled === "true" ||
+//     shippingSettings.shipping_enabled === 1 ||
+//     shippingSettings.shipping_enabled === "1";
+
+//   const freeShippingEnabled =
+//     shippingSettings.free_shipping_enabled === true ||
+//     shippingSettings.free_shipping_enabled === "true" ||
+//     shippingSettings.free_shipping_enabled === 1 ||
+//     shippingSettings.free_shipping_enabled === "1";
+
+//   const shippingCharge = Number(shippingSettings.shipping_charge || 0);
+//   const freeAbove = Number(shippingSettings.free_shipping_above || 0);
+
+//   if (!shippingEnabled) return 0;
+
+//   if (freeShippingEnabled && freeAbove > 0 && subtotal >= freeAbove) {
+//     return 0;
+//   }
+
+//   return shippingCharge;
+// }, [cart.length, subtotal, shippingSettings]);
+//   const total = Math.max(0, subtotal + shipping - discount);
+
+//   const resetCoupon = () => {
+//     setCouponApplied(false);
+//     setAppliedCoupon(null);
+//     setDiscount(0);
+//     setCouponMessage("");
+//   };
+
+//   const updateQuantity = async (cartId, qty) => {
+//     await updateCartQuantity(cartId, qty);
+//     resetCoupon();
+//   };
+
+//   // const updateSize = async (cartId, size) => {
+//   //   await updateCartSize(cartId, size);
+//   //   resetCoupon();
+//   // };
+//   const updateSize = async (cartId, size, item) => {
+//   // const matchedVariant = item.variants?.find(
+//   //   (v) => String(v.size) === String(size)
+//   // );
+//   const matchedVariant = item.variants?.find(
+//   (v) =>
+//     String(v.size) === String(size) &&
+//     (!item.color || String(v.color) === String(item.color))
+// );
+
+//   await updateCartSize(cartId, size, {
+//     variant_id: matchedVariant?.id || item.variant_id || null,
+//     selected_color: matchedVariant?.color || item.color || "",
+//     item_price: Number(
+//       matchedVariant?.offer_price ||
+//       matchedVariant?.price ||
+//       item.price ||
+//       0
+//     ),
+//   });
+
+//   resetCoupon();
+// };
+
+//   const removeFromCart = async (cartId) => {
+//     await removeCartItem(cartId);
+//     resetCoupon();
+//   };
+
+//   const clearCart = async () => {
+//     await clearCartItems();
+//     resetCoupon();
 //   };
 
 //   const applyCoupon = async () => {
@@ -733,42 +1014,65 @@ export default Cart;
 //         return;
 //       }
 
-//       const res = await axiosClient.post("/coupons/validate", {
-//         code: couponCode.trim(),
+//       const result = await validateCoupon({
+//         code: couponCode.trim().toUpperCase(),
 //         order_amount: subtotal,
 //       });
 
-//       const coupon = res.data?.data;
-
-//       if (!coupon) {
-//         alert("Invalid coupon code");
-//         return;
-//       }
-
-//       let discountAmount = 0;
-
-//       if (coupon.discount_type === "fixed") {
-//         discountAmount = Number(coupon.discount_value || 0);
-//       } else {
-//         discountAmount = Math.round(
-//           subtotal * (Number(coupon.discount_value || 0) / 100)
-//         );
-//       }
-
-//       if (coupon.maximum_discount) {
-//         discountAmount = Math.min(
-//           discountAmount,
-//           Number(coupon.maximum_discount)
-//         );
-//       }
-
-//       setDiscount(discountAmount);
+//       setAppliedCoupon(result);
+//       setDiscount(result.discount_amount);
 //       setCouponApplied(true);
-//       setCouponMessage(coupon.message || "Coupon applied successfully!");
+//       setCouponMessage(result.message || "Coupon applied successfully!");
 //     } catch (error) {
 //       console.error("Coupon apply error:", error);
+//       resetCoupon();
 //       alert(error.response?.data?.message || "Invalid coupon code");
 //     }
+//   };
+
+//   const goCheckout = () => {
+//     if (cart.length === 0) {
+//       alert("Please add some products to your cart first!");
+//       return;
+//     }
+
+//     navigate("/checkout", {
+//   state: {
+//     coupon_id: appliedCoupon?.coupon_id || null,
+//     coupon_code: couponApplied
+//       ? appliedCoupon?.coupon_code || couponCode.trim().toUpperCase()
+//       : "",
+//     coupon_type: appliedCoupon?.coupon_type || "",
+//     coupon_value: appliedCoupon?.coupon_value || 0,
+//     discount_amount: discount,
+//     coupon_message: couponMessage,
+
+//     subtotal,
+//     shipping,
+//     total,
+
+//     shipping_label:
+//       shippingSettings.shipping_label || "Standard Delivery",
+
+//     estimated_delivery_days:
+//       shippingSettings.estimated_delivery_days || "",
+
+//     shipping_settings: shippingSettings,
+//   },
+// });
+//     // navigate("/checkout", {
+//     //   state: {
+//     //     coupon_id: appliedCoupon?.coupon_id || null,
+//     //     coupon_code: couponApplied ? appliedCoupon?.coupon_code || couponCode.trim().toUpperCase() : "",
+//     //     coupon_type: appliedCoupon?.coupon_type || "",
+//     //     coupon_value: appliedCoupon?.coupon_value || 0,
+//     //     discount_amount: discount,
+//     //     coupon_message: couponMessage,
+//     //     subtotal,
+//     //     shipping,
+//     //     total,
+//     //   },
+//     // });
 //   };
 
 //   return (
@@ -795,24 +1099,37 @@ export default Cart;
 //           <div className="w-20 h-[2px] bg-primary mb-4 rounded-full"></div>
 
 //           <p className="font-body text-gray-200 text-sm md:text-base tracking-wide drop-shadow-md">
-//             {totalQuantity} {totalQuantity === 1 ? "item" : "items"} ready for
-//             checkout
+//             {totalQuantity} {totalQuantity === 1 ? "item" : "items"} ready for checkout
 //           </p>
 //         </div>
 //       </div>
 
 //       <div className="container mx-auto px-4 py-8">
-//         {cart.length > 0 && subtotal < 999 && (
+//         {cart.length > 0 && (
+//   <div className="max-w-3xl mx-auto mb-8">
+//     <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-4">
+//       <div className="flex items-center gap-2">
+//         <Truck className="w-5 h-5 text-green-600" />
+//         {/* <span className="text-sm font-semibold text-green-600">
+//           🎉 Free Shipping on all orders
+//         </span> */}
+//         <span className="text-sm font-semibold text-green-600">
+//           {shipping === 0
+//             ? ` ${shippingSettings.shipping_label || "Free Shipping"}`
+//             : `${shippingSettings.shipping_label || "Standard Delivery"} · ₹${shipping}`}
+//         </span>
+
+//       </div>
+//     </div>
+//   </div>
+// )}
+//         {/* {cart.length > 0 && subtotal < 999 && (
 //           <div className="max-w-3xl mx-auto mb-8">
 //             <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-4">
 //               <div className="flex items-center justify-between mb-2">
 //                 <span className="text-sm text-stone-600 flex items-center gap-2">
 //                   <Truck className="w-4 h-4 text-primary" />
-//                   Add{" "}
-//                   <span className="font-bold">
-//                     ₹{(999 - subtotal).toLocaleString("en-IN")}
-//                   </span>{" "}
-//                   more to get FREE shipping!
+//                   Add <span className="font-bold">₹{(999 - subtotal).toLocaleString("en-IN")}</span> more to get FREE shipping!
 //                 </span>
 //                 <span className="text-xs text-stone-400">
 //                   {Math.round((subtotal / 999) * 100)}%
@@ -822,14 +1139,12 @@ export default Cart;
 //               <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
 //                 <div
 //                   className="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-500"
-//                   style={{
-//                     width: `${Math.min((subtotal / 999) * 100, 100)}%`,
-//                   }}
+//                   style={{ width: `${Math.min((subtotal / 999) * 100, 100)}%` }}
 //                 ></div>
 //               </div>
 //             </div>
 //           </div>
-//         )}
+//         )} */}
 
 //         <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
 //           <div className="w-full lg:w-2/3">
@@ -852,7 +1167,16 @@ export default Cart;
 //               )}
 //             </div>
 
-//             {cart.length === 0 ? (
+//             {/* {cartLoading ? (
+//               <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-12 text-center">
+//                 Loading cart...
+//               </div>
+//             ) : cart.length === 0 ? ( */}
+//             {cartLoading && cart.length === 0 ? (
+//               <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-12 text-center">
+//                 Loading cart...
+//               </div>
+//             ) : cart.length === 0 ? (
 //               <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-12 text-center">
 //                 <div className="w-24 h-24 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-6">
 //                   <ShoppingCart className="w-10 h-10 text-stone-400" />
@@ -863,8 +1187,7 @@ export default Cart;
 //                 </h2>
 
 //                 <p className="text-stone-500 mb-8 max-w-md mx-auto">
-//                   Looks like you haven't added anything to your bag yet. Explore
-//                   our collections and find something you'll love!
+//                   Looks like you haven't added anything to your bag yet. Explore our collections and find something you'll love!
 //                 </p>
 
 //                 <Link
@@ -880,12 +1203,13 @@ export default Cart;
 //                   const cleanPrice = getNumericPrice(item.price);
 //                   const qty = Number(item.qty || 1);
 //                   const itemTotal = cleanPrice * qty;
-//                   const isWishlisted = wishlist.some((w) => w.id === item.id);
-//                   const key = getCartKey(item);
-//                   const sizeOptions =
-//                     item.sizes?.length > 0
-//                       ? item.sizes
-//                       : [item.size || "Free Size"];
+//                   const isWishlisted = wishlist.some(
+//                     (w) => Number(w.product_id || w.id) === Number(item.id)
+//                   );
+//                   const key = item.cartItemId;
+//                   const sizeOptions = item.sizes?.length
+//                     ? item.sizes
+//                     : [item.size || "Free Size"];
 
 //                   return (
 //                     <div
@@ -894,9 +1218,17 @@ export default Cart;
 //                     >
 //                       <div className="flex flex-col sm:flex-row gap-4">
 //                         <div className="relative w-full sm:w-28 h-32 flex-shrink-0">
-//                           <Link to={`/product/${item.slug}`}>
+//                           {/* <Link to={`/product/${item.slug}`}> */}
+//                           <Link
+//                               to={`/product/${item.slug}`}
+//                               state={{
+//                                 selectedVariantId: item.variant_id,
+//                                 selectedSize: item.size,
+//                                 selectedColor: item.color,
+//                               }}
+//                             >
 //                             <img
-//                               src={item.image}
+//                               src={item.image ? getImageUrl(item.image) : ""}
 //                               alt={item.name}
 //                               className="w-full h-full object-cover rounded-lg"
 //                             />
@@ -905,23 +1237,25 @@ export default Cart;
 //                           <button
 //                             onClick={() => toggleWishlist(item)}
 //                             className={`absolute top-2 right-2 p-1.5 rounded-full bg-white/90 shadow-sm transition-all hover:scale-110 ${
-//                               isWishlisted
-//                                 ? "text-red-500"
-//                                 : "text-stone-400 hover:text-red-500"
+//                               isWishlisted ? "text-red-500" : "text-stone-400 hover:text-red-500"
 //                             }`}
 //                           >
-//                             <Heart
-//                               className={`w-4 h-4 ${
-//                                 isWishlisted ? "fill-red-500" : ""
-//                               }`}
-//                             />
+//                             <Heart className={`w-4 h-4 ${isWishlisted ? "fill-red-500" : ""}`} />
 //                           </button>
 //                         </div>
 
 //                         <div className="flex-1">
 //                           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
 //                             <div>
-//                               <Link to={`/product/${item.slug}`}>
+//                               <Link
+//                                 to={`/product/${item.slug}`}
+//                                 state={{
+//                                   selectedVariantId: item.variant_id,
+//                                   selectedSize: item.size,
+//                                   selectedColor: item.color,
+//                                 }}
+//                               >
+//                               {/* <Link to={`/product/${item.slug}`}> */}
 //                                 <h3 className="font-heading text-lg text-stone-800 hover:text-primary transition-colors">
 //                                   {item.name}
 //                                 </h3>
@@ -949,14 +1283,17 @@ export default Cart;
 //                                 ₹{itemTotal.toLocaleString("en-IN")}
 //                               </p>
 
-//                               {item.oldPrice && (
+//                                 {getNumericPrice(item.oldPrice) > 0 && (
+//                                     <p className="text-xs text-stone-400 line-through">
+//                                       ₹{(getNumericPrice(item.oldPrice) * qty).toLocaleString("en-IN")}
+//                                     </p>
+//                                   )}
+                                  
+//                               {/* {item.oldPrice && (
 //                                 <p className="text-xs text-stone-400 line-through">
-//                                   ₹
-//                                   {(
-//                                     getNumericPrice(item.oldPrice) * qty
-//                                   ).toLocaleString("en-IN")}
+//                                   ₹{(getNumericPrice(item.oldPrice) * qty).toLocaleString("en-IN")}
 //                                 </p>
-//                               )}
+//                               )} */}
 
 //                               <p className="text-[11px] text-stone-400 mt-1">
 //                                 ₹{cleanPrice.toLocaleString("en-IN")} × {qty}
@@ -969,19 +1306,19 @@ export default Cart;
 //                               <span className="text-xs text-stone-500 uppercase tracking-wider">
 //                                 Size:
 //                               </span>
-//                             <select
-//   value={item.size || "Free Size"}
-//   onChange={(e) => updateSize(key, e.target.value)}
-//   // onChange={(e) => updateSize(item.cartItemId || item.id, e.target.value)}
-//   className="bg-stone-50 border border-stone-200 rounded-lg text-xs px-3 py-1.5 outline-none focus:border-primary"
-// >
-//   {(item.sizes?.length ? item.sizes : [item.size || "Free Size"]).map((size) => (
-//     <option key={size} value={size}>
-//       {size}
-//     </option>
-//   ))}
-// </select>
 
+//                               <select
+//                                 value={item.size || "Free Size"}
+//                                 onChange={(e) => updateSize(key, e.target.value, item)}
+//                                 // onChange={(e) => updateSize(key, e.target.value)}
+//                                 className="bg-stone-50 border border-stone-200 rounded-lg text-xs px-3 py-1.5 outline-none focus:border-primary"
+//                               >
+//                                 {sizeOptions.map((size) => (
+//                                   <option key={size} value={size}>
+//                                     {size}
+//                                   </option>
+//                                 ))}
+//                               </select>
 //                             </div>
 
 //                             <div className="flex items-center gap-2">
@@ -990,27 +1327,11 @@ export default Cart;
 //                               </span>
 
 //                               <div className="flex items-center border border-stone-200 rounded-lg bg-white">
-// <button
-//   type="button"
-//   onClick={() => handleDecreaseQty(item)}
-//   disabled={qty <= 1}
-//   className="w-8 h-8 flex items-center justify-center text-stone-500 hover:text-primary hover:bg-stone-50 rounded-l-lg transition-colors disabled:opacity-40"
-// >
-//   <Minus className="w-3 h-3" />
-// </button>
-
-// <span className="w-8 text-center text-sm font-medium">{qty}</span>
-
-// <button
-//   type="button"
-//   onClick={() => handleIncreaseQty(item)}
-//   className="w-8 h-8 flex items-center justify-center text-stone-500 hover:text-primary hover:bg-stone-50 rounded-r-lg transition-colors"
-// >
-//   <Plus className="w-3 h-3" />
-// </button>
-//                                 {/* <button
-//                                   onClick={() => handleDecreaseQty(item)}
-//                                   className="w-8 h-8 flex items-center justify-center text-stone-500 hover:text-primary hover:bg-stone-50 rounded-l-lg transition-colors"
+//                                 <button
+//                                   type="button"
+//                                   onClick={() => updateQuantity(key, Math.max(1, qty - 1))}
+//                                   disabled={qty <= 1}
+//                                   className="w-8 h-8 flex items-center justify-center text-stone-500 hover:text-primary hover:bg-stone-50 rounded-l-lg transition-colors disabled:opacity-40"
 //                                 >
 //                                   <Minus className="w-3 h-3" />
 //                                 </button>
@@ -1020,11 +1341,12 @@ export default Cart;
 //                                 </span>
 
 //                                 <button
-//                                   onClick={() => handleIncreaseQty(item)}
+//                                   type="button"
+//                                   onClick={() => updateQuantity(key, qty + 1)}
 //                                   className="w-8 h-8 flex items-center justify-center text-stone-500 hover:text-primary hover:bg-stone-50 rounded-r-lg transition-colors"
 //                                 >
 //                                   <Plus className="w-3 h-3" />
-//                                 </button> */}
+//                                 </button>
 //                               </div>
 //                             </div>
 
@@ -1051,7 +1373,7 @@ export default Cart;
 //                 Order Summary
 //               </h2>
 
-//               <div className="mb-4 pb-4 border-b border-stone-100">
+//               <div className="mb-4 pb-4 boitem.stockrder-b border-stone-100">
 //                 <label className="text-xs font-semibold text-stone-700 uppercase tracking-wider mb-2 block">
 //                   Coupon Code
 //                 </label>
@@ -1062,9 +1384,7 @@ export default Cart;
 //                     value={couponCode}
 //                     onChange={(e) => {
 //                       setCouponCode(e.target.value);
-//                       setCouponApplied(false);
-//                       setDiscount(0);
-//                       setCouponMessage("");
+//                       resetCoupon();
 //                     }}
 //                     placeholder="Enter code"
 //                     className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary transition-all uppercase"
@@ -1098,9 +1418,7 @@ export default Cart;
 //               <div className="space-y-3 text-sm mb-4 pb-4 border-b border-stone-100">
 //                 <div className="flex justify-between text-stone-600">
 //                   <span>Subtotal ({totalQuantity} items)</span>
-//                   <span className="font-medium">
-//                     ₹{subtotal.toLocaleString("en-IN")}
-//                   </span>
+//                   <span className="font-medium">₹{subtotal.toLocaleString("en-IN")}</span>
 //                 </div>
 
 //                 {discount > 0 && (
@@ -1126,6 +1444,12 @@ export default Cart;
 //                     <span>₹{shipping}</span>
 //                   )}
 //                 </div>
+//                 {/* {shippingSettings.estimated_delivery_days && cart.length > 0 && (
+//   <div className="flex justify-between text-stone-600">
+//     <span>Estimated Delivery</span>
+//     <span>{shippingSettings.estimated_delivery_days}</span>
+//   </div>
+// )} */}
 //               </div>
 
 //               <div className="flex justify-between items-center mb-6">
@@ -1136,10 +1460,7 @@ export default Cart;
 //               </div>
 
 //               <button
-//                 onClick={() => {
-//                   if (cart.length > 0) navigate("/checkout");
-//                   else alert("Please add some products to your cart first!");
-//                 }}
+//                 onClick={goCheckout}
 //                 disabled={cart.length === 0}
 //                 className="w-full py-4 rounded-xl font-body text-sm font-bold uppercase tracking-widest transition-all bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
 //               >
@@ -1162,21 +1483,9 @@ export default Cart;
 //               </div>
 
 //               <div className="flex items-center justify-center gap-3 mt-4">
-//                 <img
-//                   src="https://cdn-icons-png.flaticon.com/128/196/196578.png"
-//                   alt="Visa"
-//                   className="h-5 opacity-50"
-//                 />
-//                 <img
-//                   src="https://cdn-icons-png.flaticon.com/128/196/196561.png"
-//                   alt="Mastercard"
-//                   className="h-5 opacity-50"
-//                 />
-//                 <img
-//                   src="https://cdn-icons-png.flaticon.com/128/196/196539.png"
-//                   alt="UPI"
-//                   className="h-5 opacity-50"
-//                 />
+//                 <img src="https://cdn-icons-png.flaticon.com/128/196/196578.png" alt="Visa" className="h-5 opacity-50" />
+//                 <img src="https://cdn-icons-png.flaticon.com/128/196/196561.png" alt="Mastercard" className="h-5 opacity-50" />
+//                 <img src="https://cdn-icons-png.flaticon.com/128/196/196539.png" alt="UPI" className="h-5 opacity-50" />
 //                 <span className="text-[10px] text-stone-400">and more</span>
 //               </div>
 //             </div>
@@ -1188,5 +1497,4 @@ export default Cart;
 // };
 
 // export default Cart;
-
 

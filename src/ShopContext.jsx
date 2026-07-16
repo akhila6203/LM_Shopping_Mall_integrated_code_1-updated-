@@ -82,7 +82,12 @@ const normalizeCartItem = (item) => {
       ? getImageUrl(item.thumbnail)
       : "",
       price: Number(item.item_price || item.price || item.offer_price || 0),
-variants: itemData.variants || item.variants || [],
+      gst_percent: Number(
+        item.gst_percent ||
+        itemData.gst_percent ||
+        0
+      ),
+      variants: itemData.variants || item.variants || [],
     // price: Number(item.price || item.offer_price || item.item_price || 0),
     oldPrice: Number(item.oldPrice || item.old_price || item.mrp || 0),
     fabric: item.fabric || itemData.fabric || "",
