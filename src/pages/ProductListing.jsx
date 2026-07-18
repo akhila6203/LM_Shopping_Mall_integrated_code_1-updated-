@@ -211,12 +211,73 @@ const handleAddToCart = async (e, product) => {
   const selectedSize = lowestVariant?.size || sizes[0] || "";
   const selectedColor = lowestVariant?.color || "";
 
+  const saleMode =
+  String(
+    fullProduct.sale_mode ||
+      product.sale_mode ||
+      "piece"
+  )
+    .trim()
+    .toLowerCase();
+
+const minimumQuantity =
+  saleMode === "meter"
+    ? Number(
+        fullProduct
+          .minimum_quantity ||
+          product
+            .minimum_quantity ||
+          1
+      )
+    : 1;
+
+const quantityStep =
+  saleMode === "meter"
+    ? Number(
+        fullProduct
+          .quantity_step ||
+          product
+            .quantity_step ||
+          0.5
+      )
+    : 1;
+
+const unitName =
+  fullProduct.unit_name ||
+  product.unit_name ||
+  (
+    saleMode === "meter"
+      ? "meter"
+      : "piece"
+  );
+
   const success = await addToCartProtected({
     product_id: fullProduct.id || product.id,
     variant_id: lowestVariant?.id || null,
-    quantity: 1,
-    selected_size: selectedSize,
+    // quantity: 1,
+    // selected_size: selectedSize,
+    quantity:
+  minimumQuantity,
+
+selected_size:
+  saleMode === "size"
+    ? selectedSize
+    : "",
+
     selected_color: selectedColor,
+
+    sale_mode:
+  saleMode,
+
+unit_name:
+  unitName,
+
+minimum_quantity:
+  minimumQuantity,
+
+quantity_step:
+  quantityStep,
+
     item_price: Number(
       lowestVariant?.offer_price ||
       lowestVariant?.price ||
@@ -225,22 +286,103 @@ const handleAddToCart = async (e, product) => {
       0
     ),
     item_data: {
-      image: product.image,
-      slug: fullProduct.slug || product.slug,
-      name: fullProduct.name || product.name,
-      brand: fullProduct.brand || "",
-      fabric: lowestVariant?.fabric || fullProduct.fabric || "",
-      material: fullProduct.material || "",
-      sizes: sizes.length ? sizes : [selectedSize],
-      colors,
-      variants: variants.map((v) => ({
-        id: v.id,
-        size: v.size,
-        color: v.color,
-        price: Number(v.price || 0),
-        offer_price: Number(v.offer_price || v.price || 0),
-      })),
-    },
+  image:
+    product.image,
+
+  slug:
+    fullProduct.slug ||
+    product.slug,
+
+  name:
+    fullProduct.name ||
+    product.name,
+
+  brand:
+    fullProduct.brand ||
+    "",
+
+  fabric:
+    lowestVariant?.fabric ||
+    fullProduct.fabric ||
+    "",
+
+  material:
+    fullProduct.material ||
+    "",
+
+  sizes,
+  colors,
+
+  sale_mode:
+    saleMode,
+
+  unit_name:
+    unitName,
+
+  minimum_quantity:
+    minimumQuantity,
+
+  quantity_step:
+    quantityStep,
+
+  gst_percent:
+    Number(
+      fullProduct.gst_percent ||
+        0
+    ),
+
+  variants:
+    variants.map((v) => ({
+      id: v.id,
+      size: v.size || "",
+      color: v.color || "",
+      stock: Number(
+        v.stock || 0
+      ),
+      price: Number(
+        v.price || 0
+      ),
+      offer_price: Number(
+        v.offer_price ||
+          v.price ||
+          0
+      ),
+    })),
+},
+//     item_data: {
+//       image: product.image,
+//       slug: fullProduct.slug || product.slug,
+//       name: fullProduct.name || product.name,
+//       brand: fullProduct.brand || "",
+//       fabric: lowestVariant?.fabric || fullProduct.fabric || "",
+//       material: fullProduct.material || "",
+//       sizes: sizes.length ? sizes : [selectedSize],
+//       colors,
+//       variants: variants.map((v) => ({
+//         id: v.id,
+//         size: v.size,
+//         color: v.color,
+//         price: Number(v.price || 0),
+//         offer_price: Number(v.offer_price || v.price || 0),
+//         sale_mode:
+//   saleMode,
+
+// unit_name:
+//   unitName,
+
+// minimum_quantity:
+//   minimumQuantity,
+
+// quantity_step:
+//   quantityStep,
+
+// gst_percent:
+//   Number(
+//     fullProduct.gst_percent ||
+//       0
+//   ),
+//       })),
+//     },
   });
 
   if (!success) return;

@@ -55,6 +55,92 @@ const normalizeSizes = (product) => {
   return [];
 };
 
+
+const roundQuantity = (value) =>
+  Math.round(
+    (Number(value || 0) + Number.EPSILON) * 100
+  ) / 100;
+
+const normalizeSaleMode = (value) => {
+  const mode = String(value || "piece")
+    .trim()
+    .toLowerCase();
+
+  return ["piece", "size", "meter"].includes(mode)
+    ? mode
+    : "piece";
+};
+
+const getSellingUnitConfig = (product = {}) => {
+  const itemData = parseItemData(product);
+
+  const saleMode = normalizeSaleMode(
+    product.sale_mode ||
+      itemData.sale_mode ||
+      "piece"
+  );
+
+  const isMeter = saleMode === "meter";
+
+  return {
+    saleMode,
+
+    unitName:
+      product.unit_name ||
+      itemData.unit_name ||
+      (isMeter ? "meter" : "piece"),
+
+    minimumQuantity: isMeter
+      ? Number(
+          product.minimum_quantity ||
+            itemData.minimum_quantity ||
+            1
+        )
+      : 1,
+
+    quantityStep: isMeter
+      ? Number(
+          product.quantity_step ||
+            itemData.quantity_step ||
+            0.5
+        )
+      : 1,
+  };
+};
+
+const normalizeFrontendQuantity = (
+  quantity,
+  product = {}
+) => {
+  const {
+    saleMode,
+    minimumQuantity,
+  } = getSellingUnitConfig(product);
+
+  const numericQuantity = Number(quantity);
+
+  if (
+    !Number.isFinite(numericQuantity) ||
+    numericQuantity <= 0
+  ) {
+    return minimumQuantity;
+  }
+
+  if (saleMode === "meter") {
+    return roundQuantity(
+      Math.max(
+        minimumQuantity,
+        numericQuantity
+      )
+    );
+  }
+
+  return Math.max(
+    1,
+    Math.floor(numericQuantity)
+  );
+};
+
 const normalizeCartItem = (item) => {
   const itemData = parseItemData(item);
   const sizes = normalizeSizes({ ...item, ...itemData });
@@ -70,9 +156,60 @@ const normalizeCartItem = (item) => {
     variant_id: item.variant_id || null,
     slug: item.slug || itemData.slug || "",
     name: item.name || itemData.name || "",
-    qty: Number(item.qty || item.quantity || 1),
-    size: item.selected_size || item.size || sizes[0] || "Free Size",
+    // qty: Number(item.qty || item.quantity || 1),
+qty: normalizeFrontendQuantity(
+  item.qty || item.quantity,
+  {
+    ...itemData,
+    ...item,
+  }
+),
+    // size: item.selected_size || item.size || sizes[0] || "Free Size",
     // size: item.size || item.selected_size || sizes[0] || "Free Size",
+    size:
+  String(
+    item.selected_size ||
+    item.size ||
+    sizes[0] ||
+    ""
+  ).trim(),
+
+  sale_mode:
+  item.sale_mode ||
+  itemData.sale_mode ||
+  "piece",
+
+// unit_name:
+//   item.unit_name ||
+//   itemData.unit_name ||
+//   "piece",
+unit_name:
+  item.unit_name ||
+  itemData.unit_name ||
+  (
+    (
+      item.sale_mode ||
+      itemData.sale_mode
+    ) === "meter"
+      ? "meter"
+      : "piece"
+  ),
+
+minimum_quantity:
+  Number(
+    item.minimum_quantity ||
+    itemData.minimum_quantity ||
+    1
+  ),
+
+quantity_step:
+  Number(
+    item.quantity_step ||
+    itemData.quantity_step ||
+    1
+  ),
+
+
     color: item.color || item.selected_color || "",
     image: itemData.image
       ? getImageUrl(itemData.image)
@@ -99,26 +236,131 @@ const normalizeCartItem = (item) => {
   };
 };
 
+
 const normalizeWishlistItem = (item) => {
   const product = item.product || {};
-  const image = item.image || item.thumbnail || product.thumbnail || product.image || "";
+
+  const image =
+    item.image ||
+    item.thumbnail ||
+    product.thumbnail ||
+    product.image ||
+    "";
+
   const price = Number(
-    item.offer_price || item.price || product.offer_price || product.price || 0
+    item.offer_price ||
+      item.price ||
+      product.offer_price ||
+      product.price ||
+      0
   );
+
+  const saleMode =
+    normalizeSaleMode(
+      item.sale_mode ||
+        product.sale_mode
+    );
+
+  const unitName =
+    item.unit_name ||
+    product.unit_name ||
+    (
+      saleMode === "meter"
+        ? "meter"
+        : "piece"
+    );
 
   return {
     ...item,
-    id: item.product_id || item.id || product.id,
-    product_id: item.product_id || item.id || product.id,
-    slug: item.slug || product.slug || "",
-    name: item.name || product.name || "",
+
+    id:
+      item.product_id ||
+      item.id ||
+      product.id,
+
+    product_id:
+      item.product_id ||
+      item.id ||
+      product.id,
+
+    slug:
+      item.slug ||
+      product.slug ||
+      "",
+
+    name:
+      item.name ||
+      product.name ||
+      "",
+
     price,
-    oldPrice: Number(item.old_price || item.price || product.price || price),
-    image: image ? getImageUrl(image) : "",
-    category: item.category_name || product.category_name || "",
-    stock: Number(item.stock || product.stock || 0),
+
+    oldPrice: Number(
+      item.old_price ||
+        item.price ||
+        product.price ||
+        price
+    ),
+
+    image:
+      image
+        ? getImageUrl(image)
+        : "",
+
+    category:
+      item.category_name ||
+      product.category_name ||
+      "",
+
+    stock: Number(
+      item.stock ||
+        product.stock ||
+        0
+    ),
+
+    sale_mode: saleMode,
+
+    unit_name: unitName,
+
+    minimum_quantity:
+      saleMode === "meter"
+        ? Number(
+            item.minimum_quantity ||
+              product.minimum_quantity ||
+              1
+          )
+        : 1,
+
+    quantity_step:
+      saleMode === "meter"
+        ? Number(
+            item.quantity_step ||
+              product.quantity_step ||
+              0.5
+          )
+        : 1,
   };
 };
+// const normalizeWishlistItem = (item) => {
+//   const product = item.product || {};
+//   const image = item.image || item.thumbnail || product.thumbnail || product.image || "";
+//   const price = Number(
+//     item.offer_price || item.price || product.offer_price || product.price || 0
+//   );
+
+//   return {
+//     ...item,
+//     id: item.product_id || item.id || product.id,
+//     product_id: item.product_id || item.id || product.id,
+//     slug: item.slug || product.slug || "",
+//     name: item.name || product.name || "",
+//     price,
+//     oldPrice: Number(item.old_price || item.price || product.price || price),
+//     image: image ? getImageUrl(image) : "",
+//     category: item.category_name || product.category_name || "",
+//     stock: Number(item.stock || product.stock || 0),
+//   };
+// };
 
 const getItemKey = (item) => item.cartItemId || item.cart_id;
 
@@ -297,26 +539,8 @@ export const ShopProvider = ({ children }) => {
   initAuth();
 }, [refreshProfile, fetchCart, fetchWishlist]);
 
-//   useEffect(() => {
-//   const initAuth = async () => {
-//     try {
-//       await refreshProfile();
-//       await fetchCart();
-//       await fetchWishlist();
-//       // await refreshProfile();
-//       // await fetchCart();
-//     } catch (error) {
-//       setCustomer(null);
-//       setToken(null);
-//       setCart([]);
-//       setWishlist([]);
-//     } finally {
-//       setAuthLoading(false);
-//     }
-//   };
 
-//   initAuth();
-// }, [refreshProfile, fetchCart]);
+
   
 
   const login = async (identifier, password) => {
@@ -338,16 +562,54 @@ export const ShopProvider = ({ children }) => {
       throw Object.assign(new Error(message), { response: { data: response } });
     }
 
-    // persistAuthTokens(authToken, refreshToken);
-    const normalizedCustomer = normalizeCustomer(authCustomer);
-    // setToken(authToken);
-    setCustomer(normalizedCustomer);
-    await fetchCart();
-    await fetchWishlist();
-    closeLoginModal();
-    window.dispatchEvent(new Event("auth-updated"));
-    window.dispatchEvent(new Event("cart-updated"));
-    return normalizedCustomer;
+    
+    const normalizedCustomer =
+  normalizeCustomer(
+    authCustomer
+  );
+
+setToken(
+  authToken
+);
+
+setCustomer(
+  normalizedCustomer
+);
+
+/*
+ * Actual database cartను reload చేస్తుంది.
+ */
+await fetchCart(true);
+
+/*
+ * React customer state update కోసం wait చేయకుండా,
+ * logged-in customer directగా pass చేస్తున్నాం.
+ */
+await fetchWishlist(
+  normalizedCustomer
+);
+
+closeLoginModal();
+
+window.dispatchEvent(
+  new Event(
+    "auth-updated"
+  )
+);
+
+window.dispatchEvent(
+  new Event(
+    "cart-updated"
+  )
+);
+
+window.dispatchEvent(
+  new Event(
+    "wishlist-updated"
+  )
+);
+
+return normalizedCustomer;
   };
 
   const register = async (formData) => {
@@ -428,49 +690,201 @@ export const ShopProvider = ({ children }) => {
     //   return false;
     // }
     if (!customer) {
-  return false;
-}
+      return false;
+    }
 
     try {
-      const sizes = normalizeSizes(product);
-      const itemData = product.item_data || {
-        image: product.image || "",
-        slug: product.slug || "",
-        name: product.name || "",
-        brand: product.brand || "",
-        fabric: product.fabric || "",
-        material: product.material || "",
-        sizes,
-        colors: product.colors || [],
-      };
+      const sizes =
+  normalizeSizes(product);
 
-      const payload = {
-        product_id: product.product_id || product.id,
-        variant_id: product.variant_id || null,
-        quantity: Number(product.quantity || product.qty || 1),
-        selected_size: product.selected_size || product.size || sizes[0] || "Free Size",
-        selected_color: product.selected_color || product.color || "",
-        item_price: Number(
-          product.item_price || product.price || product.offer_price || 0
-        ),
-        item_data: itemData,
-      };
+const {
+  saleMode,
+  unitName,
+  minimumQuantity,
+  quantityStep,
+} = getSellingUnitConfig(product);
+
+const requestedQuantity =
+  normalizeFrontendQuantity(
+    product.quantity ||
+      product.qty ||
+      minimumQuantity,
+    {
+      ...product,
+      sale_mode: saleMode,
+      minimum_quantity:
+        minimumQuantity,
+      quantity_step:
+        quantityStep,
+    }
+  );
+
+const selectedSize =
+  saleMode === "size"
+    ? (
+        product.selected_size ||
+        product.size ||
+        sizes[0] ||
+        ""
+      )
+    : "";
+
+const suppliedItemData =
+  product.item_data &&
+  typeof product.item_data ===
+    "object"
+    ? product.item_data
+    : {};
+
+const itemData = {
+  ...suppliedItemData,
+
+  image:
+    suppliedItemData.image ||
+    product.image ||
+    "",
+
+  slug:
+    suppliedItemData.slug ||
+    product.slug ||
+    "",
+
+  name:
+    suppliedItemData.name ||
+    product.name ||
+    "",
+
+  brand:
+    suppliedItemData.brand ||
+    product.brand ||
+    "",
+
+  fabric:
+    suppliedItemData.fabric ||
+    product.fabric ||
+    "",
+
+  material:
+    suppliedItemData.material ||
+    product.material ||
+    "",
+
+  sizes:
+    suppliedItemData.sizes ||
+    sizes,
+
+  colors:
+    suppliedItemData.colors ||
+    product.colors ||
+    [],
+
+  variants:
+    suppliedItemData.variants ||
+    product.variants ||
+    [],
+
+  gst_percent: Number(
+    suppliedItemData.gst_percent ||
+      product.gst_percent ||
+      0
+  ),
+
+  sale_mode: saleMode,
+  unit_name: unitName,
+
+  minimum_quantity:
+    minimumQuantity,
+
+  quantity_step:
+    quantityStep,
+};
+
+const payload = {
+  product_id:
+    product.product_id ||
+    product.id,
+
+  variant_id:
+    product.variant_id ||
+    null,
+
+  quantity:
+    requestedQuantity,
+
+  selected_size:
+    selectedSize,
+
+  selected_color:
+    product.selected_color ||
+    product.color ||
+    "",
+
+  item_price: Number(
+    product.item_price ||
+      product.price ||
+      product.offer_price ||
+      0
+  ),
+
+  item_data:
+    itemData,
+};
+      // const sizes = normalizeSizes(product);
+      // const itemData = product.item_data || {
+      //   image: product.image || "",
+      //   slug: product.slug || "",
+      //   name: product.name || "",
+      //   brand: product.brand || "",
+      //   fabric: product.fabric || "",
+      //   material: product.material || "",
+      //   sizes,
+      //   colors: product.colors || [],
+      // };
+
+      // const payload = {
+      //   product_id: product.product_id || product.id,
+      //   variant_id: product.variant_id || null,
+      //   quantity: Number(product.quantity || product.qty || 1),
+      //   selected_size: product.selected_size || product.size || sizes[0] || "Free Size",
+      //   selected_color: product.selected_color || product.color || "",
+      //   item_price: Number(
+      //     product.item_price || product.price || product.offer_price || 0
+      //   ),
+      //   item_data: itemData,
+      // };
 
       // await addCartItem(payload);
       // await fetchCart();
       // window.dispatchEvent(new Event("cart-updated"));
-      const saved = await addCartItem(payload);
-        setCart((prev) => {
-          const normalized = normalizeCartItem({
-            ...payload,
-            ...(saved || {}),
-            cart_id: saved?.cart_id || saved?.id || Date.now(),
-            cartItemId: saved?.cartItemId || saved?.cart_id || saved?.id || Date.now(),
-            qty: payload.quantity,
-          });
+      // const saved = await addCartItem(payload);
+      //   setCart((prev) => {
+      //     const normalized = normalizeCartItem({
+      //       ...payload,
+      //       ...(saved || {}),
+      //       cart_id: saved?.cart_id || saved?.id || Date.now(),
+      //       cartItemId: saved?.cartItemId || saved?.cart_id || saved?.id || Date.now(),
+      //       qty: payload.quantity,
+      //     });
 
-          return [normalized, ...prev];
-        });
+      //     return [normalized, ...prev];
+      //   });
+      await addCartItem(
+  payload
+);
+
+/*
+ * Backend database నుంచి actual cart_id,
+ * quantity, product dataతో cartను reload చేస్తుంది.
+ */
+await fetchCart(true);
+
+window.dispatchEvent(
+  new Event(
+    "cart-updated"
+  )
+);
+
+return true;
 
         window.dispatchEvent(new Event("cart-updated"));
       return true;
@@ -499,27 +913,138 @@ window.dispatchEvent(new Event("cart-updated"));
     }
   };
 
-  const updateQuantity = async (key, qty) => {
-    const cartId = String(key);
-    const newQty = Math.max(1, Number(qty) || 1);
+  const updateQuantity = async (
+  key,
+  requestedQty
+) => {
+  const cartId = String(key);
 
-    try {
-      setCart((prev) =>
-        prev.map((item) =>
-          String(getItemKey(item)) === cartId ? { ...item, qty: newQty } : item
+  const cartItem =
+    cart.find(
+      (item) =>
+        String(
+          getItemKey(item)
+        ) === cartId
+    );
+
+  if (!cartItem) return false;
+
+  const {
+    saleMode,
+    minimumQuantity,
+    quantityStep,
+  } = getSellingUnitConfig(
+    cartItem
+  );
+
+  let newQty =
+    Number(requestedQty);
+
+  if (
+    !Number.isFinite(newQty)
+  ) {
+    newQty =
+      minimumQuantity;
+  }
+
+  if (
+    saleMode === "meter"
+  ) {
+    newQty =
+      roundQuantity(
+        Math.max(
+          minimumQuantity,
+          newQty
         )
       );
-      await updateCartItemApi(cartId, { quantity: newQty });
-window.dispatchEvent(new Event("cart-updated"));
-      // await updateCartItemApi(cartId, { quantity: newQty });
-      // await fetchCart();
-      // window.dispatchEvent(new Event("cart-updated"));
-    } catch (error) {
-      console.error("Update quantity error:", error);
-      alert(error.response?.data?.message || "Quantity update failed");
-      await fetchCart();
+
+    const steps =
+      (
+        newQty -
+        minimumQuantity
+      ) / quantityStep;
+
+    if (
+      Math.abs(
+        steps -
+          Math.round(steps)
+      ) > 0.000001
+    ) {
+      alert(
+        `Quantity must increase by ${quantityStep} ${cartItem.unit_name || "meter"}`
+      );
+
+      return false;
     }
-  };
+  } else {
+    newQty = Math.max(
+      1,
+      Math.floor(newQty)
+    );
+  }
+
+  if (
+    Number(cartItem.stock || 0) > 0 &&
+    newQty >
+      Number(cartItem.stock)
+  ) {
+    alert(
+      saleMode === "meter"
+        ? "Requested fabric length is not available"
+        : "Requested quantity is not available"
+    );
+
+    return false;
+  }
+
+  try {
+    setCart((previous) =>
+      previous.map((item) =>
+        String(
+          getItemKey(item)
+        ) === cartId
+          ? {
+              ...item,
+              qty: newQty,
+              quantity: newQty,
+            }
+          : item
+      )
+    );
+
+    await updateCartItemApi(
+      cartId,
+      {
+        quantity:
+          newQty,
+      }
+    );
+
+    window.dispatchEvent(
+      new Event(
+        "cart-updated"
+      )
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      "Update quantity error:",
+      error
+    );
+
+    alert(
+      error.response?.data
+        ?.message ||
+        "Quantity update failed"
+    );
+
+    await fetchCart();
+
+    return false;
+  }
+};
+
 
 
   const updateSize = async (key, size, extra = {}) => {
@@ -546,37 +1071,14 @@ window.dispatchEvent(new Event("cart-updated"));
     });
 
     window.dispatchEvent(new Event("cart-updated"));
-    // await updateCartItemApi(cartId, {
-    //   selected_size: size,
-    //   ...extra,
-    // });
-
-    // await fetchCart();
-    // window.dispatchEvent(new Event("cart-updated"));
+    
   } catch (error) {
     console.error("Update size error:", error);
     alert(error.response?.data?.message || "Size update failed");
     await fetchCart();
   }
 };
-  // const updateSize = async (key, size) => {
-  //   const cartId = String(key);
-
-  //   try {
-  //     setCart((prev) =>
-  //       prev.map((item) =>
-  //         String(getItemKey(item)) === cartId ? { ...item, size } : item
-  //       )
-  //     );
-  //     await updateCartItemApi(cartId, { selected_size: size });
-  //     await fetchCart();
-  //     window.dispatchEvent(new Event("cart-updated"));
-  //   } catch (error) {
-  //     console.error("Update size error:", error);
-  //     alert(error.response?.data?.message || "Size update failed");
-  //     await fetchCart();
-  //   }
-  // };
+ 
 
   const clearCart = async () => {
     try {
@@ -611,7 +1113,8 @@ window.dispatchEvent(new Event("cart-updated"));
 
     try {
       await toggleWishlistApi(product.product_id || product.id);
-      await fetchWishlist();
+      // await fetchWishlist();
+      await fetchWishlist(customer);
       window.dispatchEvent(new Event("wishlist-updated"));
       return true;
     } catch (error) {
@@ -678,3 +1181,5 @@ window.dispatchEvent(new Event("cart-updated"));
     </ShopContext.Provider>
   );
 };
+
+

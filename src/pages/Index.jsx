@@ -3,8 +3,8 @@ import BestOfSeason from "@/components/BestOfSeason";
 import ProductGrid from "@/components/ProductGrid";
 import ShopByCategory from "@/components/ShopByCategory";
 import FeaturedBanner from "@/components/FeaturedBanner";
-import CustomerReviews from "@/components/CustomerReviews";
-import InstagramGallery from "@/components/InstagramGallery";
+// import CustomerReviews from "@/components/CustomerReviews";
+// import InstagramGallery from "@/components/InstagramGallery";
 import AboutUs from "@/components/AboutUs";
 import TrustStrip from "@/components/TrustStrip";
 import InstagramFeed from "@/components/InstagramFeed";
@@ -22,7 +22,6 @@ const Index = () => (
     <AboutUs/>
     {/* <CustomerReviews /> */}
     {/* <InstagramGallery /> */}
-    {/* Footer yahan se hata diya gaya hai */}
   </div>
 );
 

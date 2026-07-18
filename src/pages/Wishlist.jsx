@@ -1,42 +1,258 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+// import { Link } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+} from "react-router-dom";
 import { 
   Trash2, ShoppingCart, Heart, Sparkles, ArrowRight, 
   Eye, Tag, Percent, Share2, ChevronRight, Gift,
   Truck, Shield
 } from "lucide-react";
 import { useShop } from "../ShopContext.jsx";
+import {
+  getProductBySlug,
+} from "@/services/productService";
 
 const Wishlist = () => {
+  const navigate = useNavigate();
   const { wishlist, toggleWishlist, addToCart, cart } = useShop();
   const [hoveredItem, setHoveredItem] = useState(null);
   const [addedToCart, setAddedToCart] = useState({});
 
-  const handleMoveToCart = (item) => {
-    addToCart({
-      product_id: item.id || item.product_id,
-      variant_id: null,
-      quantity: 1,
-      selected_size: "Free Size",
-      selected_color: "",
-      item_price: Number(item.price || 0),
-      item_data: {
-        image: item.image,
-        slug: item.slug,
-        name: item.name,
-        brand: item.brand || "",
-        fabric: item.fabric || "",
-        material: item.material || "",
-        sizes: [],
-        colors: [],
+  // const handleMoveToCart = (item) => {
+  //   addToCart({
+  //     product_id: item.id || item.product_id,
+  //     variant_id: null,
+  //     quantity: 1,
+  //     selected_size: "Free Size",
+  //     selected_color: "",
+  //     item_price: Number(item.price || 0),
+  //     item_data: {
+  //       image: item.image,
+  //       slug: item.slug,
+  //       name: item.name,
+  //       brand: item.brand || "",
+  //       fabric: item.fabric || "",
+  //       material: item.material || "",
+  //       sizes: [],
+  //       colors: [],
+  //     },
+  //   });
+  //   setAddedToCart({ ...addedToCart, [item.id]: true });
+  //   setTimeout(() => {
+  //     setAddedToCart({ ...addedToCart, [item.id]: false });
+  //     toggleWishlist(item);
+  //   }, 1000);
+  // };
+  const handleMoveToCart = async (
+  item
+) => {
+  try {
+    let product = item;
+
+    if (item.slug) {
+      product =
+        await getProductBySlug(
+          item.slug
+        );
+    }
+
+    const saleMode =
+      String(
+        product.sale_mode ||
+          item.sale_mode ||
+          "piece"
+      )
+        .trim()
+        .toLowerCase();
+
+    const variants =
+      product.variants ||
+      product
+        .product_variants ||
+      [];
+
+    /*
+     * Size productsలో customer
+     * size select చేయాలి.
+     * Wishlist నుంచి random size
+     * add చేయకూడదు.
+     */
+    if (
+      saleMode === "size"
+    ) {
+      navigate(
+        `/product/${
+          product.slug ||
+          item.slug
+        }`
+      );
+
+      return;
+    }
+
+    const minimumQuantity =
+      saleMode === "meter"
+        ? Number(
+            product.minimum_quantity ||
+              item.minimum_quantity ||
+              1
+          )
+        : 1;
+
+    const quantityStep =
+      saleMode === "meter"
+        ? Number(
+            product.quantity_step ||
+              item.quantity_step ||
+              0.5
+          )
+        : 1;
+
+    const success =
+      await addToCart({
+        product_id:
+          product.id ||
+          item.id ||
+          item.product_id,
+
+        variant_id:
+          null,
+
+        quantity:
+          minimumQuantity,
+
+        selected_size:
+          "",
+
+        selected_color:
+          "",
+
+        item_price:
+          Number(
+            product.offer_price ||
+              product.price ||
+              item.price ||
+              0
+          ),
+
+        sale_mode:
+          saleMode,
+
+        unit_name:
+          product.unit_name ||
+          item.unit_name ||
+          (
+            saleMode ===
+            "meter"
+              ? "meter"
+              : "piece"
+          ),
+
+        minimum_quantity:
+          minimumQuantity,
+
+        quantity_step:
+          quantityStep,
+
+        item_data: {
+          image:
+            item.image ||
+            product.thumbnail ||
+            "",
+
+          slug:
+            product.slug ||
+            item.slug,
+
+          name:
+            product.name ||
+            item.name,
+
+          brand:
+            product.brand ||
+            item.brand ||
+            "",
+
+          fabric:
+            product.fabric ||
+            item.fabric ||
+            "",
+
+          material:
+            product.material ||
+            item.material ||
+            "",
+
+          sizes: [],
+          colors: [],
+
+          sale_mode:
+            saleMode,
+
+          unit_name:
+            product.unit_name ||
+            item.unit_name ||
+            (
+              saleMode ===
+              "meter"
+                ? "meter"
+                : "piece"
+            ),
+
+          minimum_quantity:
+            minimumQuantity,
+
+          quantity_step:
+            quantityStep,
+
+          gst_percent:
+            Number(
+              product.gst_percent ||
+                0
+            ),
+        },
+      });
+
+    if (!success) return;
+
+    setAddedToCart(
+      (previous) => ({
+        ...previous,
+        [item.id]: true,
+      })
+    );
+
+    setTimeout(
+      async () => {
+        setAddedToCart(
+          (previous) => ({
+            ...previous,
+            [item.id]:
+              false,
+          })
+        );
+
+        await toggleWishlist(
+          item
+        );
       },
-    });
-    setAddedToCart({ ...addedToCart, [item.id]: true });
-    setTimeout(() => {
-      setAddedToCart({ ...addedToCart, [item.id]: false });
-      toggleWishlist(item);
-    }, 1000);
-  };
+      1000
+    );
+  } catch (error) {
+    console.error(
+      "Move wishlist item error:",
+      error
+    );
+
+    alert(
+      error.response?.data
+        ?.message ||
+        "Unable to move product to cart"
+    );
+  }
+};
 
   const getNumericPrice = (priceVal) => {
     if (typeof priceVal === 'number') return priceVal;

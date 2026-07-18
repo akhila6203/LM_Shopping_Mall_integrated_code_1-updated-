@@ -48,19 +48,51 @@ const Cart = () => {
     return Number(cleanString) || 0;
   };
 
+  const roundQuantity = (
+  value
+) =>
+  Math.round(
+    (
+      Number(value || 0) +
+      Number.EPSILON
+    ) * 100
+  ) / 100;
 
-//   useEffect(() => {
-//   const fetchSettings = async () => {
-//     try {
-//       const data = await getStoreSettings();
-//       setStoreSettings(data || {});
-//     } catch (error) {
-//       console.error("Shipping settings fetch error:", error);
-//     }
-//   };
+const getItemSaleMode = (
+  item
+) =>
+  String(
+    item.sale_mode ||
+      item.item_data
+        ?.sale_mode ||
+      "piece"
+  )
+    .trim()
+    .toLowerCase();
 
-//   fetchSettings();
-// }, []);
+const getItemMinimum = (
+  item
+) =>
+  getItemSaleMode(item) ===
+  "meter"
+    ? Number(
+        item.minimum_quantity ||
+          1
+      )
+    : 1;
+
+const getItemStep = (
+  item
+) =>
+  getItemSaleMode(item) ===
+  "meter"
+    ? Number(
+        item.quantity_step ||
+          0.5
+      )
+    : 1;
+
+
 useEffect(() => {
   const fetchSettings = async () => {
     try {
@@ -89,8 +121,29 @@ useEffect(() => {
 }, []);
 
 
-  const totalQuantity = useMemo(
-    () => cart.reduce((sum, item) => sum + Number(item.qty || item.quantity || 1), 0),
+  // const totalQuantity = useMemo(
+  //   () => cart.reduce((sum, item) => sum + Number(item.qty || item.quantity || 1), 0),
+  //   [cart]
+  // );
+  const totalQuantity =
+  useMemo(
+    () =>
+      cart.reduce(
+        (sum, item) =>
+          sum +
+          (
+            getItemSaleMode(
+              item
+            ) === "meter"
+              ? 1
+              : Number(
+                  item.qty ||
+                  item.quantity ||
+                  1
+                )
+          ),
+        0
+      ),
     [cart]
   );
 
@@ -103,36 +156,8 @@ useEffect(() => {
     [cart]
   );
 
-  // const shipping = subtotal > 999 || subtotal === 0 ? 0 : 99;
-  // const shipping = 0;
-//   const shippingSettings = storeSettings?.shipping || {};
 
-// const shipping = useMemo(() => {
-//   if (cart.length === 0 || subtotal === 0) return 0;
-
-  // const shippingEnabled =
-  //   shippingSettings.shipping_enabled === true ||
-  //   shippingSettings.shipping_enabled === "true" ||
-  //   shippingSettings.shipping_enabled === 1 ||
-  //   shippingSettings.shipping_enabled === "1";
-
-  // const freeShippingEnabled =
-  //   shippingSettings.free_shipping_enabled === true ||
-  //   shippingSettings.free_shipping_enabled === "true" ||
-  //   shippingSettings.free_shipping_enabled === 1 ||
-  //   shippingSettings.free_shipping_enabled === "1";
-
-  // const shippingCharge = Number(shippingSettings.shipping_charge || 0);
-  // const freeAbove = Number(shippingSettings.free_shipping_above || 0);
-
-  // if (!shippingEnabled) return 0;
-
-  // if (freeShippingEnabled && freeAbove > 0 && subtotal >= freeAbove) {
-  //   return 0;
-  // }
-
-//   return shippingCharge;
-// }, [cart.length, subtotal, shippingSettings]);
+ 
 
 const shippingSettings = useMemo(
   () =>
@@ -178,37 +203,210 @@ const total = Math.max(
     setCouponMessage("");
   };
 
-  const updateQuantity = async (cartId, qty) => {
-    await updateCartQuantity(cartId, qty);
+  // const updateQuantity = async (cartId, qty) => {
+  //   await updateCartQuantity(cartId, qty);
+  //   resetCoupon();
+  // };
+//   const updateQuantity = async (
+//   cartId,
+//   qty
+// ) => {
+//   const item =
+//     cart.find(
+//       (cartItem) =>
+//         String(
+//           cartItem.cartItemId ||
+//           cartItem.cart_id
+//         ) ===
+//         String(cartId)
+//     );
+
+//   if (!item) return;
+
+//   const saleMode =
+//     getItemSaleMode(item);
+
+//   const minimum =
+//     getItemMinimum(item);
+
+//   let nextQuantity =
+//     Number(qty);
+
+//   if (
+//     saleMode === "meter"
+//   ) {
+//     nextQuantity =
+//       roundQuantity(
+//         Math.max(
+//           minimum,
+//           nextQuantity
+//         )
+//       );
+//   } else {
+//     nextQuantity =
+//       Math.max(
+//         1,
+//         Math.floor(
+//           nextQuantity
+//         )
+//       );
+//   }
+
+//   await updateCartQuantity(
+//     cartId,
+//     nextQuantity
+//   );
+
+//   resetCoupon();
+// };
+const updateQuantity = async (
+  cartId,
+  qty
+) => {
+  try {
+    const item =
+      cart.find(
+        (cartItem) =>
+          String(
+            cartItem.cartItemId ||
+              cartItem.cart_id
+          ) ===
+          String(cartId)
+      );
+
+    if (!item) return;
+
+    const saleMode =
+      getItemSaleMode(item);
+
+    const minimum =
+      getItemMinimum(item);
+
+    let nextQuantity =
+      Number(qty);
+
+    if (
+      saleMode === "meter"
+    ) {
+      nextQuantity =
+        roundQuantity(
+          Math.max(
+            minimum,
+            nextQuantity
+          )
+        );
+    } else {
+      nextQuantity =
+        Math.max(
+          1,
+          Math.floor(
+            nextQuantity
+          )
+        );
+    }
+
+    await updateCartQuantity(
+      cartId,
+      nextQuantity
+    );
+
     resetCoupon();
-  };
+  } catch (error) {
+    console.error(
+      "Cart quantity update failed:",
+      error
+    );
+  }
+};
 
   // const updateSize = async (cartId, size) => {
   //   await updateCartSize(cartId, size);
   //   resetCoupon();
   // };
-  const updateSize = async (cartId, size, item) => {
-  // const matchedVariant = item.variants?.find(
-  //   (v) => String(v.size) === String(size)
-  // );
-  const matchedVariant = item.variants?.find(
-  (v) =>
-    String(v.size) === String(size) &&
-    (!item.color || String(v.color) === String(item.color))
-);
+//   const updateSize = async (cartId, size, item) => {
+//   // const matchedVariant = item.variants?.find(
+//   //   (v) => String(v.size) === String(size)
+//   // );
+//   const matchedVariant = item.variants?.find(
+//   (v) =>
+//     String(v.size) === String(size) &&
+//     (!item.color || String(v.color) === String(item.color))
+// );
 
-  await updateCartSize(cartId, size, {
-    variant_id: matchedVariant?.id || item.variant_id || null,
-    selected_color: matchedVariant?.color || item.color || "",
-    item_price: Number(
-      matchedVariant?.offer_price ||
-      matchedVariant?.price ||
-      item.price ||
-      0
-    ),
-  });
+//   await updateCartSize(cartId, size, {
+//     variant_id: matchedVariant?.id || item.variant_id || null,
+//     selected_color: matchedVariant?.color || item.color || "",
+//     item_price: Number(
+//       matchedVariant?.offer_price ||
+//       matchedVariant?.price ||
+//       item.price ||
+//       0
+//     ),
+//   });
 
-  resetCoupon();
+//   resetCoupon();
+// };
+const updateSize = async (
+  cartId,
+  size,
+  item
+) => {
+  try {
+    const matchedVariant =
+      item.variants?.find(
+        (variant) =>
+          String(
+            variant.size
+          ) ===
+            String(size) &&
+          (
+            !item.color ||
+            String(
+              variant.color
+            ) ===
+              String(
+                item.color
+              )
+          )
+      );
+
+    if (!matchedVariant) {
+      alert(
+        "Selected size is unavailable"
+      );
+
+      return;
+    }
+
+    await updateCartSize(
+      cartId,
+      size,
+      {
+        variant_id:
+          matchedVariant.id,
+
+        selected_color:
+          matchedVariant.color ||
+          item.color ||
+          "",
+
+        item_price:
+          Number(
+            matchedVariant.offer_price ||
+              matchedVariant.price ||
+              item.price ||
+              0
+          ),
+      }
+    );
+
+    resetCoupon();
+  } catch (error) {
+    console.error(
+      "Cart size update failed:",
+      error
+    );
+  }
 };
 
   const removeFromCart = async (cartId) => {
@@ -396,28 +594,7 @@ const total = Math.max(
     </div>
   </div>
 )}
-        {/* {cart.length > 0 && subtotal < 999 && (
-          <div className="max-w-3xl mx-auto mb-8">
-            <div className="bg-white rounded-xl shadow-sm border border-stone-100 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-stone-600 flex items-center gap-2">
-                  <Truck className="w-4 h-4 text-primary" />
-                  Add <span className="font-bold">₹{(999 - subtotal).toLocaleString("en-IN")}</span> more to get FREE shipping!
-                </span>
-                <span className="text-xs text-stone-400">
-                  {Math.round((subtotal / 999) * 100)}%
-                </span>
-              </div>
-
-              <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min((subtotal / 999) * 100, 100)}%` }}
-                ></div>
-              </div>
-            </div>
-          </div>
-        )} */}
+       
 
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
           <div className="w-full lg:w-2/3">
@@ -475,14 +652,48 @@ const total = Math.max(
                 {cart.map((item) => {
                   const cleanPrice = getNumericPrice(item.price);
                   const qty = Number(item.qty || 1);
+
+                  const saleMode =
+  getItemSaleMode(item);
+
+const isMeter =
+  saleMode === "meter";
+
+const isSizeProduct =
+  saleMode === "size";
+
+const minimumQuantity =
+  getItemMinimum(item);
+
+const quantityStep =
+  getItemStep(item);
+
+const unitName =
+  item.unit_name ||
+  (
+    isMeter
+      ? "meter"
+      : "piece"
+  );
+
                   const itemTotal = cleanPrice * qty;
                   const isWishlisted = wishlist.some(
                     (w) => Number(w.product_id || w.id) === Number(item.id)
                   );
                   const key = item.cartItemId;
-                  const sizeOptions = item.sizes?.length
-                    ? item.sizes
-                    : [item.size || "Free Size"];
+                  // const sizeOptions = item.sizes?.length
+                  //   ? item.sizes
+                  //   : [item.size || "Free Size"];
+                  const sizeOptions =
+  Array.isArray(
+    item.sizes
+  )
+    ? item.sizes.filter(
+        Boolean
+      )
+    : item.size
+    ? [item.size]
+    : [];
 
                   return (
                     <div
@@ -575,7 +786,40 @@ const total = Math.max(
                           </div>
 
                           <div className="flex flex-wrap items-center gap-4 mt-4">
-                            <div className="flex items-center gap-2">
+                           {isSizeProduct &&
+  sizeOptions.length > 0 && (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-stone-500 uppercase tracking-wider">
+        Size:
+      </span>
+
+      <select
+        value={
+          item.size || ""
+        }
+        onChange={(event) =>
+          updateSize(
+            key,
+            event.target.value,
+            item
+          )
+        }
+        className="bg-stone-50 border border-stone-200 rounded-lg text-xs px-3 py-1.5 outline-none focus:border-primary"
+      >
+        {sizeOptions.map(
+          (size) => (
+            <option
+              key={size}
+              value={size}
+            >
+              {size}
+            </option>
+          )
+        )}
+      </select>
+    </div>
+  )}
+                            {/* <div className="flex items-center gap-2">
                               <span className="text-xs text-stone-500 uppercase tracking-wider">
                                 Size:
                               </span>
@@ -592,18 +836,36 @@ const total = Math.max(
                                   </option>
                                 ))}
                               </select>
-                            </div>
+                            </div> */}
 
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-stone-500 uppercase tracking-wider">
+                              {/* <span className="text-xs text-stone-500 uppercase tracking-wider">
                                 Qty:
+                              </span> */}
+                              <span className="text-xs text-stone-500 uppercase tracking-wider">
+                                {isMeter
+                                  ? `Length (${unitName}):`
+                                  : "Qty:"}
                               </span>
 
                               <div className="flex items-center border border-stone-200 rounded-lg bg-white">
                                 <button
                                   type="button"
-                                  onClick={() => updateQuantity(key, Math.max(1, qty - 1))}
-                                  disabled={qty <= 1}
+                                  onClick={() =>
+                                      updateQuantity(
+                                        key,
+                                        roundQuantity(
+                                          qty -
+                                            quantityStep
+                                        )
+                                      )
+                                    }
+                                    disabled={
+                                      qty <=
+                                      minimumQuantity
+                                    }
+                                  // onClick={() => updateQuantity(key, Math.max(1, qty - 1))}
+                                  // disabled={qty <= 1}
                                   className="w-8 h-8 flex items-center justify-center text-stone-500 hover:text-primary hover:bg-stone-50 rounded-l-lg transition-colors disabled:opacity-40"
                                 >
                                   <Minus className="w-3 h-3" />
@@ -615,7 +877,24 @@ const total = Math.max(
 
                                 <button
                                   type="button"
-                                  onClick={() => updateQuantity(key, qty + 1)}
+                                  onClick={() =>
+                                    updateQuantity(
+                                      key,
+                                      roundQuantity(
+                                        qty +
+                                          quantityStep
+                                      )
+                                    )
+                                  }
+                                  disabled={
+                                    Number(item.stock || 0) > 0 &&
+                                    roundQuantity(
+                                      qty +
+                                        quantityStep
+                                    ) >
+                                      Number(item.stock)
+                                  }
+                                  // onClick={() => updateQuantity(key, qty + 1)}
                                   className="w-8 h-8 flex items-center justify-center text-stone-500 hover:text-primary hover:bg-stone-50 rounded-r-lg transition-colors"
                                 >
                                   <Plus className="w-3 h-3" />

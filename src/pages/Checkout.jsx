@@ -39,6 +39,43 @@ const mapAddressToForm = (addr, customerEmail = "") => {
   };
 };
 
+const getSaleMode = (
+  item
+) =>
+  String(
+    item.sale_mode ||
+      item.item_data
+        ?.sale_mode ||
+      "piece"
+  )
+    .trim()
+    .toLowerCase();
+
+const getQuantityText = (
+  item
+) => {
+  const quantity =
+    Number(
+      item.qty ||
+      item.quantity ||
+      1
+    );
+
+  const saleMode =
+    getSaleMode(item);
+
+  if (
+    saleMode === "meter"
+  ) {
+    return `${quantity} ${
+      item.unit_name ||
+      "meter"
+    }`;
+  }
+
+  return `Qty: ${quantity}`;
+};
+
 const Checkout = () => {
   const { cart, clearCart, fetchCart, customer } = useShop();
   const navigate = useNavigate();
@@ -148,10 +185,28 @@ const [shippingLoading, setShippingLoading] =
       sum + getNumericPrice(item.price) * Number(item.qty || item.quantity || 1),
     0
   );
-  const totalQuantity = cart.reduce(
-    (sum, item) => sum + Number(item.qty || item.quantity || 1),
+  // const totalQuantity = cart.reduce(
+  //   (sum, item) => sum + Number(item.qty || item.quantity || 1),
+  //   0
+  // );
+
+  const totalQuantity =
+  cart.reduce(
+    (sum, item) =>
+      sum +
+      (
+        getSaleMode(item) ===
+        "meter"
+          ? 1
+          : Number(
+              item.qty ||
+              item.quantity ||
+              1
+            )
+      ),
     0
   );
+  
   // const shipping = subtotal > 999 || subtotal === 0 ? 0 : 99;
   // const total = Math.max(0, subtotal + shipping - discount);
 //   const getShippingCharge = () => {
